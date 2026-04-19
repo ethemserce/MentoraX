@@ -22,7 +22,6 @@ public sealed class MobileDevicesController : ControllerBase
     {
         var result = await handler.Handle(
             new RegisterMobileDeviceCommand(
-                currentUserService.GetRequiredUserId(),
                 request.DeviceToken,
                 request.Platform),
             cancellationToken);

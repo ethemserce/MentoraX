@@ -13,11 +13,10 @@ public sealed class StudyPlan : BaseEntity
 
     public User? User { get; private set; }
     public LearningMaterial? LearningMaterial { get; private set; }
-
-    private readonly List<StudySession> _sessions = [];
-    //public IReadOnlyCollection<StudySession> Sessions => _sessions;
     public ICollection<StudyProgress> StudyProgresses { get; set; } = new List<StudyProgress>();
-    public ICollection<StudySession> StudySessions { get; set; } = new List<StudySession>();
+    public ICollection<StudySession> StudySessions { get; private set; } = new List<StudySession>();
+
+    public void AddSession(StudySession session) => StudySessions.Add(session);
 
     private StudyPlan() { }
 
@@ -30,7 +29,5 @@ public sealed class StudyPlan : BaseEntity
         DailyTargetMinutes = dailyTargetMinutes;
         Status = PlanStatus.Active;
     }
-
-    public void AddSession(StudySession session) => _sessions.Add(session);
     public void Complete() => Status = PlanStatus.Completed;
 }

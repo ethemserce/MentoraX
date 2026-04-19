@@ -1,26 +1,30 @@
 ﻿using MentoraX.Application.Abstractions.Persistence;
+using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
+using MentoraX.Application.Common.Validation;
 using MentoraX.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
-using MentoraX.Application.Common.Validation;
 
 namespace MentoraX.Application.Features.Mobile.Commands;
 
-public sealed record StartStudySessionCommand(Guid SessionId, Guid UserId)
+public sealed record StartStudySessionCommand(Guid SessionId)
     : ICommand<NextStudySessionDto>;
 
-public sealed class StartStudySessionCommandHandler(IApplicationDbContext _dbContext)
+public sealed class StartStudySessionCommandHandler(IApplicationDbContext _dbContext, 
+    ICurrentUserService _currentUserService)
     : ICommandHandler<StartStudySessionCommand, NextStudySessionDto>
 {
     public async Task<NextStudySessionDto> Handle(
         StartStudySessionCommand command,
         CancellationToken cancellationToken)
     {
+        var userId = _currentUserService.GetRequiredUserId();
+
         var session = await _dbContext.StudySessions
             .FirstOrDefaultAsync(x =>
                 x.Id == command.SessionId &&
-                x.UserId == command.UserId,
+                x.UserId == userId,
                 cancellationToken);
 
         if (session is null)
@@ -31,8 +35,7 @@ public sealed class StartStudySessionCommandHandler(IApplicationDbContext _dbCon
 
         if (!session.StartedAtUtc.HasValue)
         {
-            session.StartedAtUtc = DateTime.UtcNow;
-            session.UpdatedAtUtc = DateTime.UtcNow;
+            session.MarkStarted(DateTime.UtcNow);
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
 

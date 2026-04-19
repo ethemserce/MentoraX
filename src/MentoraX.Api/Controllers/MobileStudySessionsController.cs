@@ -39,7 +39,7 @@ public sealed class MobileStudySessionsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await handler.Handle(
-            new StartStudySessionCommand(sessionId, currentUserService.GetRequiredUserId()),
+            new StartStudySessionCommand(sessionId),
             cancellationToken);
 
         return Ok(result);

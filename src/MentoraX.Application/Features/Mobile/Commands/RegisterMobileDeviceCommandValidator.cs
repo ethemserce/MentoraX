@@ -6,9 +6,9 @@ public sealed class RegisterMobileDeviceCommandValidator : AbstractValidator<Reg
 {
     public RegisterMobileDeviceCommandValidator()
     {
-        RuleFor(x => x.UserId)
-            .NotEmpty()
-            .WithMessage("UserId is required.");
+        //RuleFor(x => x.UserId)
+        //    .NotEmpty()
+        //    .WithMessage("UserId is required.");
 
         RuleFor(x => x.DeviceToken)
             .NotEmpty()

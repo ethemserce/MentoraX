@@ -1,4 +1,5 @@
 ﻿using MentoraX.Application.Abstractions.Persistence;
+using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
@@ -8,22 +9,23 @@ using Microsoft.EntityFrameworkCore;
 namespace MentoraX.Application.Features.Mobile.Commands;
 
 public sealed record RegisterMobileDeviceCommand(
-    Guid UserId,
     string DeviceToken,
     string Platform) : ICommand<MobileDeviceDto>;
 
-public sealed class RegisterMobileDeviceCommandHandler(IApplicationDbContext _dbContext)
+public sealed class RegisterMobileDeviceCommandHandler(IApplicationDbContext _dbContext,
+     ICurrentUserService _currentUserService)
     : ICommandHandler<RegisterMobileDeviceCommand, MobileDeviceDto>
 {
     public async Task<MobileDeviceDto> Handle(
         RegisterMobileDeviceCommand command,
         CancellationToken cancellationToken)
     {
+        var userId = _currentUserService.GetRequiredUserId();
         var now = DateTime.UtcNow;
 
         var existing = await _dbContext.MobileDevices
             .FirstOrDefaultAsync(x =>
-                x.UserId == command.UserId &&
+                x.UserId == userId &&
                 x.DeviceToken == command.DeviceToken,
                 cancellationToken);
 
@@ -45,7 +47,7 @@ public sealed class RegisterMobileDeviceCommandHandler(IApplicationDbContext _db
         var device = new MobileDevice
         {
             Id = Guid.NewGuid(),
-            UserId = command.UserId,
+            UserId = userId,
             DeviceToken = command.DeviceToken,
             Platform = command.Platform,
             CreatedAtUtc = now,

@@ -10,8 +10,8 @@ public sealed class StartStudySessionCommandValidator : AbstractValidator<StartS
             .NotEmpty()
             .WithMessage("SessionId is required.");
 
-        RuleFor(x => x.UserId)
-            .NotEmpty()
-            .WithMessage("UserId is required.");
+        //RuleFor(x => x.UserId)
+        //    .NotEmpty()
+        //    .WithMessage("UserId is required.");
     }
 }

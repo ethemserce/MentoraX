@@ -19,12 +19,12 @@ public sealed record CreateStudyPlanCommand(
 
 public sealed class CreateStudyPlanCommandHandler(
     IApplicationDbContext dbContext,
-    ICurrentUserService currentUserService)
+    ICurrentUserService _currentUserService)
     : ICommandHandler<CreateStudyPlanCommand, StudyPlanDto>
 {
     public async Task<StudyPlanDto> Handle(CreateStudyPlanCommand command, CancellationToken cancellationToken)
     {
-        var userId = currentUserService.GetRequiredUserId();
+        var userId = _currentUserService.GetRequiredUserId();
 
         var material = await dbContext.LearningMaterials
             .AsNoTracking()

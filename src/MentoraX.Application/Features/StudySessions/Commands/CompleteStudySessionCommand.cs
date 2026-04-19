@@ -22,17 +22,19 @@ public sealed record CompleteStudySessionCommand
 ) : ICommand<StudySessionDto>;
 public sealed class CompleteStudySessionCommandHandler(IApplicationDbContext _dbContext,
     IStudyScheduleEngine _scheduleEngine,
-    ICurrentUserService _currentUser) 
+    ICurrentUserService _currentUserService) 
     : ICommandHandler<CompleteStudySessionCommand, StudySessionDto>
 {
     public async Task<StudySessionDto> Handle(CompleteStudySessionCommand command, CancellationToken cancellationToken)
     {
+        var userId = _currentUserService.GetRequiredUserId();
+
         var session = await _dbContext.StudySessions
             .Include(x => x.StudyProgress)
             .Include(x=>x.StudyPlan)
             .FirstOrDefaultAsync(x =>
                 x.Id == command.StudySessionId &&
-                x.UserId == _currentUser.GetUserId(), cancellationToken);
+                x.UserId == userId, cancellationToken);
 
         if (session is null)
             throw new AppNotFoundException("Study session not found.", "study_session_not_found");
@@ -42,17 +44,16 @@ public sealed class CompleteStudySessionCommandHandler(IApplicationDbContext _db
 
         var now = DateTime.UtcNow;
 
-        session.IsCompleted = true;
-        session.CompletedAtUtc = now;
-        session.QualityScore = command.QualityScore;
-        session.DifficultyScore = command.DifficultyScore;
-        session.ActualDurationMinutes = command.ActualDurationMinutes;
-        session.ReviewNotes = command.ReviewNotes;
-        session.UpdatedAtUtc = now;
+        session.MarkCompleted(
+            command.QualityScore,
+            command.DifficultyScore,
+            command.ActualDurationMinutes,
+            command.ReviewNotes,
+            now);
 
         var progress = session.StudyProgress;
 
-        var result = _scheduleEngine.CalculateNext(
+        var progressResult = _scheduleEngine.CalculateNext(
             progress.RepetitionCount,
             progress.IntervalDays,
             progress.EasinessFactor,
@@ -60,21 +61,21 @@ public sealed class CompleteStudySessionCommandHandler(IApplicationDbContext _db
             command.DifficultyScore,
             now);
 
-        progress.RepetitionCount = result.RepetitionCount;
-        progress.IntervalDays = result.IntervalDays;
-        progress.EasinessFactor = result.EasinessFactor;
+        progress.RepetitionCount = progressResult.RepetitionCount;
+        progress.IntervalDays = progressResult.IntervalDays;
+        progress.EasinessFactor = progressResult.EasinessFactor;
         progress.LastReviewedAtUtc = now;
-        progress.NextReviewAtUtc = result.NextReviewAtUtc;
+        progress.NextReviewAtUtc = progressResult.NextReviewAtUtc;
         progress.UpdatedAtUtc = now;
 
-        if (result.IsFailure)
+        if (progressResult.IsFailure)
         {
             progress.FailureCount += 1;
             progress.SuccessStreak = 0;
         }
         else
         {
-            progress.SuccessStreak += result.SuccessStreakDelta;
+            progress.SuccessStreak += progressResult.SuccessStreakDelta;
         }
 
         var nextSession = new StudySession

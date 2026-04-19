@@ -17,7 +17,7 @@ public sealed class MaterialsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateMaterialRequest request, [FromServices] ICurrentUserService currentUserService, [FromServices] ICommandHandler<CreateMaterialCommand, MaterialDto> handler, CancellationToken cancellationToken)
     {
-        var command = new CreateMaterialCommand(currentUserService.GetRequiredUserId(), request.Title, request.MaterialType, request.Content, request.EstimatedDurationMinutes, request.Description, request.Tags);
+        var command = new CreateMaterialCommand(request.Title, request.MaterialType, request.Content, request.EstimatedDurationMinutes, request.Description, request.Tags);
         var result = await handler.Handle(command, cancellationToken);
         return Ok(result);
     }

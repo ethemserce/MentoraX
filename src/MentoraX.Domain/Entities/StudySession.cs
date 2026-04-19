@@ -1,4 +1,5 @@
 using MentoraX.Domain.Enums;
+//using MentoraX.Application.Common.Exceptions;
 
 namespace MentoraX.Domain.Entities;
 
@@ -28,6 +29,9 @@ public sealed class StudySession : BaseEntity
 
     public void MarkStarted(DateTime startedAtUtc)
     {
+        //if (IsCompleted)
+        //    throw new AppConflictException("Completed sessions cannot be started.");
+
         if (!StartedAtUtc.HasValue)
         {
             StartedAtUtc = startedAtUtc;
@@ -37,6 +41,9 @@ public sealed class StudySession : BaseEntity
 
     public void MarkCompleted(int qualityScore, int difficultyScore, int actualDurationMinutes, string? reviewNotes, DateTime completedAtUtc)
     {
+        //if (IsCompleted)
+        //    throw new AppConflictException("Study session already completed.");
+
         IsCompleted = true;
         CompletedAtUtc = completedAtUtc;
         QualityScore = qualityScore;
