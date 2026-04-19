@@ -2,6 +2,7 @@
 using MentoraX.Application.Common.Exceptions;
 using System.Net;
 using System.Text.Json;
+using MentoraX.Domain.Exceptions;
 
 namespace MentoraX.Api.Middleware;
 
@@ -72,6 +73,17 @@ public sealed class ExceptionMiddleware
                 context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 response.Error.Code = appException.Code;
                 response.Error.Message = appException.Message;
+                break;
+            case DomainConflictException domainConflictException:
+                context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+                response.Error.Code = domainConflictException.Code;
+                response.Error.Message = domainConflictException.Message;
+                break;
+
+            case DomainException domainException:
+                context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                response.Error.Code = domainException.Code;
+                response.Error.Message = domainException.Message;
                 break;
 
             default:

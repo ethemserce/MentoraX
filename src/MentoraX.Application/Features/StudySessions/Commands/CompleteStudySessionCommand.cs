@@ -3,12 +3,9 @@ using MentoraX.Application.Abstractions.Scheduling;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
-using MentoraX.Application.Common.Validation;
 using MentoraX.Application.DTOs;
-using MentoraX.Application.Features.StudyPlans.Commands;
 using MentoraX.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace MentoraX.Application.Features.StudySessions.Commands;
 
@@ -38,9 +35,6 @@ public sealed class CompleteStudySessionCommandHandler(IApplicationDbContext _db
 
         if (session is null)
             throw new AppNotFoundException("Study session not found.", "study_session_not_found");
-
-        if (session.IsCompleted)
-            throw new AppConflictException("Study session already completed.");
 
         var now = DateTime.UtcNow;
 

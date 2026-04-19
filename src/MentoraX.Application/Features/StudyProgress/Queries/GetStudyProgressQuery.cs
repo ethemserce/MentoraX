@@ -2,7 +2,6 @@
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.DTOs;
-using MentoraX.Application.Features.StudyPlans.Queries;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentoraX.Application.Features.StudyProgress.Queries;

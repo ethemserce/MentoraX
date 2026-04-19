@@ -1,7 +1,6 @@
 ﻿using MentoraX.Application.Abstractions.Persistence;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
-using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
 using MentoraX.Domain.Entities;
 using Microsoft.EntityFrameworkCore;

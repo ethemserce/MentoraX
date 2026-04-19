@@ -2,7 +2,6 @@
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
-using MentoraX.Application.Common.Validation;
 using MentoraX.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,9 +28,6 @@ public sealed class StartStudySessionCommandHandler(IApplicationDbContext _dbCon
 
         if (session is null)
             throw new AppNotFoundException("Study session not found.", "study_session_not_found");
-
-        if (session.IsCompleted)
-            throw new AppConflictException("Completed sessions cannot be started.");
 
         if (!session.StartedAtUtc.HasValue)
         {
