@@ -16,35 +16,33 @@ public sealed class StudySession : BaseEntity
     public bool IsCompleted { get; set; }
     public int Order { get; set; }
 
-    public int? QualityScore { get; set; }          // 0-5
-    public int? DifficultyScore { get; set; }       // 1-5
+    public int? QualityScore { get; set; }
+    public int? DifficultyScore { get; set; }
     public int? ActualDurationMinutes { get; set; }
     public string? ReviewNotes { get; set; }
-
-
 
     public StudyPlan StudyPlan { get; set; } = null!;
     public LearningMaterial LearningMaterial { get; set; } = null!;
     public User User { get; set; } = null!;
     public StudyProgress StudyProgress { get; set; } = null!;
 
-    public StudySession() { }
-
-    public StudySession(Guid studyPlanId, int sequenceNumber, DateTime scheduledAtUtc, int plannedDurationMinutes)
+    public void MarkStarted(DateTime startedAtUtc)
     {
-        StudyPlanId = studyPlanId;
-        Order = sequenceNumber;
-        ScheduledAtUtc = scheduledAtUtc;
-        ActualDurationMinutes = plannedDurationMinutes;
-        Touch();
+        if (!StartedAtUtc.HasValue)
+        {
+            StartedAtUtc = startedAtUtc;
+            Touch();
+        }
     }
 
-    public void MarkCompleted(int actualDurationMinutes, string? notes)
+    public void MarkCompleted(int qualityScore, int difficultyScore, int actualDurationMinutes, string? reviewNotes, DateTime completedAtUtc)
     {
-        StudyPlan.Status = PlanStatus.Completed;
-        CompletedAtUtc = DateTime.UtcNow;
+        IsCompleted = true;
+        CompletedAtUtc = completedAtUtc;
+        QualityScore = qualityScore;
+        DifficultyScore = difficultyScore;
         ActualDurationMinutes = actualDurationMinutes;
-        ReviewNotes = notes;
+        ReviewNotes = reviewNotes;
         Touch();
     }
 }

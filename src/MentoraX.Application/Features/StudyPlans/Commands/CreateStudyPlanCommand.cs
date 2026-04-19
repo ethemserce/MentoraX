@@ -1,41 +1,58 @@
 using MentoraX.Application.Abstractions.Persistence;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
-using MentoraX.Application.Common.Validation;
+using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
 using MentoraX.Domain.Entities;
 using MentoraX.Domain.Enums;
-using MentoraX.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentoraX.Application.Features.StudyPlans.Commands;
 
-public sealed record CreateStudyPlanCommand(Guid UserId, Guid LearningMaterialId, string Title, DateOnly StartDate, int DailyTargetMinutes, int? PreferredHour, IReadOnlyCollection<int>? DayOffsets) : ICommand<StudyPlanDto>;
+public sealed record CreateStudyPlanCommand(
+    Guid LearningMaterialId,
+    string Title,
+    DateOnly StartDate,
+    int DailyTargetMinutes,
+    int? PreferredHour,
+    IReadOnlyCollection<int>? DayOffsets) : ICommand<StudyPlanDto>;
 
-public sealed class CreateStudyPlanCommandHandler(IApplicationDbContext dbContext, 
-    IStudyPlanGenerator studyPlanGenerator) : ICommandHandler<CreateStudyPlanCommand, StudyPlanDto>
+public sealed class CreateStudyPlanCommandHandler(
+    IApplicationDbContext dbContext,
+    ICurrentUserService currentUserService)
+    : ICommandHandler<CreateStudyPlanCommand, StudyPlanDto>
 {
     public async Task<StudyPlanDto> Handle(CreateStudyPlanCommand command, CancellationToken cancellationToken)
     {
+        var userId = currentUserService.GetRequiredUserId();
+
         var material = await dbContext.LearningMaterials
-              .AsNoTracking()
-              .FirstOrDefaultAsync(
-                  x => x.Id == command.LearningMaterialId && x.UserId == command.UserId,
-                  cancellationToken);
-        
-        if (material is null) throw new InvalidOperationException("Learning material was not found for the user.");
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.Id == command.LearningMaterialId && x.UserId == userId,
+                cancellationToken);
+
+        if (material is null)
+            throw new AppNotFoundException("Learning material was not found for the user.", "learning_material_not_found");
 
         var now = DateTime.UtcNow;
+        var preferredHour = command.PreferredHour ?? 20;
 
-        var plan = new StudyPlan(command.UserId, material.Id, command.Title, command.StartDate, command.DailyTargetMinutes);
-        plan.Status = PlanStatus.Active;
-        plan.CreatedAtUtc = now;
-        plan.UpdatedAtUtc = now;
+        var scheduledAtUtc = command.StartDate
+            .ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(preferredHour)), DateTimeKind.Local)
+            .ToUniversalTime();
+
+        var plan = new StudyPlan(userId, material.Id, command.Title, command.StartDate, command.DailyTargetMinutes)
+        {
+            Status = PlanStatus.Active,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
 
         var progress = new MentoraX.Domain.Entities.StudyProgress
         {
             Id = Guid.NewGuid(),
-            UserId = command.UserId,
+            UserId = userId,
             LearningMaterialId = material.Id,
             StudyPlanId = plan.Id,
             RepetitionCount = 0,
@@ -43,20 +60,51 @@ public sealed class CreateStudyPlanCommandHandler(IApplicationDbContext dbContex
             EasinessFactor = 2.5,
             SuccessStreak = 0,
             FailureCount = 0,
-            NextReviewAtUtc = command.StartDate.ToDateTime(TimeOnly.MinValue),
+            NextReviewAtUtc = scheduledAtUtc,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
 
-        var rule = command.DayOffsets is { Count: > 0 } ? new SpacedRepetitionRule(command.DayOffsets) : SpacedRepetitionRule.Default();
-        var sessions = studyPlanGenerator.GenerateSessions(plan,command.UserId, command.LearningMaterialId, progress.Id, command.PreferredHour ?? 20, rule);
+        var firstSession = new StudySession
+        {
+            Id = Guid.NewGuid(),
+            StudyPlanId = plan.Id,
+            LearningMaterialId = material.Id,
+            UserId = userId,
+            StudyProgressId = progress.Id,
+            ScheduledAtUtc = scheduledAtUtc,
+            IsCompleted = false,
+            Order = 1,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        };
 
         dbContext.StudyPlans.Add(plan);
         dbContext.StudyProgresses.Add(progress);
-        dbContext.StudySessions.AddRange(sessions);
+        dbContext.StudySessions.Add(firstSession);
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new StudyPlanDto(plan.Id, plan.UserId, plan.LearningMaterialId, plan.Title, plan.StartDate, plan.DailyTargetMinutes, plan.Status.ToString(),
-            sessions.OrderBy(x => x.Order).Select(x => new StudySessionDto(x.Id, x.StudyPlanId, x.Order, x.ScheduledAtUtc, x.StudyPlan.DailyTargetMinutes, x.StudyPlan.Status.ToString(), x.CompletedAtUtc, x.ActualDurationMinutes, x.ReviewNotes)).ToList());
+        return new StudyPlanDto(
+            plan.Id,
+            plan.UserId,
+            plan.LearningMaterialId,
+            plan.Title,
+            plan.StartDate,
+            plan.DailyTargetMinutes,
+            plan.Status.ToString(),
+            new List<StudySessionDto>
+            {
+                new StudySessionDto(
+                    firstSession.Id,
+                    firstSession.StudyPlanId,
+                    firstSession.Order,
+                    firstSession.ScheduledAtUtc,
+                    plan.DailyTargetMinutes,
+                    "Planned",
+                    firstSession.CompletedAtUtc,
+                    firstSession.ActualDurationMinutes,
+                    firstSession.ReviewNotes)
+            });
     }
 }

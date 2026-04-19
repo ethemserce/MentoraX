@@ -12,8 +12,9 @@ public sealed class CreateStudyPlanCommandValidator : AbstractValidator<CreateSt
 
         RuleFor(x => x.Title)
             .NotEmpty()
+            .WithMessage("Title is required.")
             .MaximumLength(200)
-            .WithMessage("Title is required and must be at most 200 characters.");
+            .WithMessage("Title must be at most 200 characters.");
 
         RuleFor(x => x.DailyTargetMinutes)
             .InclusiveBetween(5, 600)
@@ -21,11 +22,7 @@ public sealed class CreateStudyPlanCommandValidator : AbstractValidator<CreateSt
 
         RuleFor(x => x.PreferredHour)
             .InclusiveBetween(0, 23)
+            .When(x => x.PreferredHour.HasValue)
             .WithMessage("PreferredHour must be between 0 and 23.");
-
-        RuleFor(x => x.DayOffsets)
-            .NotNull()
-            .Must(x => x.Count > 0)
-            .WithMessage("At least one day offset is required.");
     }
 }

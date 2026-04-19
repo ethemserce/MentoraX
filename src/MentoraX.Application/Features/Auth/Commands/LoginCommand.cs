@@ -1,6 +1,7 @@
 using MentoraX.Application.Abstractions.Persistence;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
+using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,12 +18,12 @@ public sealed class LoginCommandHandler(
     {
         var normalizedEmail = command.Email.Trim().ToLowerInvariant();
         var user = await dbContext.Users.FirstOrDefaultAsync(x => x.Email == normalizedEmail && x.IsActive, cancellationToken)
-            ?? throw new InvalidOperationException("Invalid email or password.");
+            ?? throw new AppUnauthorizedException("Invalid email or password.");
 
         var verified = passwordHasherService.VerifyPassword(user, user.PasswordHash, command.Password);
         if (!verified)
         {
-            throw new InvalidOperationException("Invalid email or password.");
+            throw new AppUnauthorizedException("Invalid email or password.");
         }
 
         var token = jwtTokenGenerator.GenerateToken(user);

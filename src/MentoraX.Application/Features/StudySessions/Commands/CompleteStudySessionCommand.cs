@@ -2,6 +2,7 @@ using MentoraX.Application.Abstractions.Persistence;
 using MentoraX.Application.Abstractions.Scheduling;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
+using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.Common.Validation;
 using MentoraX.Application.DTOs;
 using MentoraX.Application.Features.StudyPlans.Commands;
@@ -34,10 +35,10 @@ public sealed class CompleteStudySessionCommandHandler(IApplicationDbContext _db
                 x.UserId == _currentUser.GetUserId(), cancellationToken);
 
         if (session is null)
-            throw new InvalidOperationException("Study session not found.");
+            throw new AppNotFoundException("Study session not found.");
 
         if (session.IsCompleted)
-            throw new InvalidOperationException("Study session already completed.");
+            throw new AppConflictException("Study session already completed.");
 
         var now = DateTime.UtcNow;
 
