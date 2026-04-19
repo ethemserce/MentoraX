@@ -1,15 +1,26 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace MentoraX.Infrastructure.Persistence;
 
-public sealed class MentoraXDbContextFactory : IDesignTimeDbContextFactory<MentoraXDbContext>
+public class MentoraXDbContextFactory : IDesignTimeDbContextFactory<MentoraXDbContext>
 {
     public MentoraXDbContext CreateDbContext(string[] args)
     {
+        var basePath = Directory.GetCurrentDirectory();
+
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(basePath)
+            .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+
         var optionsBuilder = new DbContextOptionsBuilder<MentoraXDbContext>();
-        optionsBuilder.UseSqlServer(
-            "Server=localhost,1433;Database=MentoraXDb;User Id=sa;Password=MyP@ssw0rd123;TrustServerCertificate=True;MultipleActiveResultSets=true");
+        optionsBuilder.UseSqlServer(connectionString);
 
         return new MentoraXDbContext(optionsBuilder.Options);
     }

@@ -16,7 +16,7 @@ public static class InfrastructureServiceRegistration
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("SqlServer") ?? throw new InvalidOperationException("Connection string 'SqlServer' was not found.");
+        var connectionString = configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'SqlServer' was not found.");
         services.AddDbContext<MentoraXDbContext>(options => options.UseSqlServer(connectionString));
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<MentoraXDbContext>());
 
