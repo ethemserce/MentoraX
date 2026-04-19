@@ -24,10 +24,10 @@ public sealed class StartStudySessionCommandHandler(IApplicationDbContext _dbCon
                 cancellationToken);
 
         if (session is null)
-            throw new AppNotFoundException("Study session not found.");
+            throw new AppNotFoundException("Study session not found.", "study_session_not_found");
 
         if (session.IsCompleted)
-            throw new InvalidOperationException("Completed sessions cannot be started.");
+            throw new AppConflictException("Completed sessions cannot be started.");
 
         if (!session.StartedAtUtc.HasValue)
         {

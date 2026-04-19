@@ -35,7 +35,7 @@ public sealed class CompleteStudySessionCommandHandler(IApplicationDbContext _db
                 x.UserId == _currentUser.GetUserId(), cancellationToken);
 
         if (session is null)
-            throw new AppNotFoundException("Study session not found.");
+            throw new AppNotFoundException("Study session not found.", "study_session_not_found");
 
         if (session.IsCompleted)
             throw new AppConflictException("Study session already completed.");

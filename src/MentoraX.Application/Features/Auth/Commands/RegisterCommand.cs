@@ -1,6 +1,7 @@
 using MentoraX.Application.Abstractions.Persistence;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
+using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
 using MentoraX.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,7 @@ public sealed class RegisterCommandHandler(
         var exists = await dbContext.Users.AnyAsync(x => x.Email == normalizedEmail, cancellationToken);
         if (exists)
         {
-            throw new InvalidOperationException("A user with this email already exists.");
+            throw new AppConflictException("A user with this email already exists.");
         }
 
         var user = new User(command.FullName, normalizedEmail, string.Empty, command.TimeZone ?? "Europe/Istanbul");
