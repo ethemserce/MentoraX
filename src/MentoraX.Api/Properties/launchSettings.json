@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "MentoraX.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:53852;http://localhost:53853"
+    }
+  }
+}

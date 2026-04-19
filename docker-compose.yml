@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mentorax-sql
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "Your_strong_password123"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mentorax_sql_data:/var/opt/mssql
+volumes:
+  mentorax_sql_data:
