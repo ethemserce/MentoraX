@@ -57,3 +57,33 @@ dotnet run --project src/MentoraX.Api
 - Add AI orchestration module
 - Add notification providers
 - Add frontend (Next.js / mobile)
+
+- ### Completed
+- Clean Architecture
+- CQRS-based application layer
+- JWT authentication
+- Global exception handling
+- Validation pipeline
+- Adaptive learning engine
+- Mobile-first API endpoints
+
+### Mobile API
+- GET `/api/mobile/dashboard`
+- GET `/api/mobile/study-sessions/next`
+- POST `/api/mobile/study-sessions/{id}/start`
+- POST `/api/mobile/study-sessions/{id}/complete`
+- GET `/api/mobile/progress/summary`
+- POST `/api/mobile/devices`
+
+### Main Domain Concepts
+- User
+- LearningMaterial
+- StudyPlan
+- StudySession
+- StudyProgress
+- MobileDevice
+
+### Next Phase
+- Flutter mobile client
+- Push notifications
+- AI-assisted learning flows
