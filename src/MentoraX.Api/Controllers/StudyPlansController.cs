@@ -6,6 +6,7 @@ using MentoraX.Application.Features.StudyPlans.Commands;
 using MentoraX.Application.Features.StudyPlans.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Reflection.Metadata;
 
 namespace MentoraX.Api.Controllers;
 
@@ -55,5 +56,29 @@ public sealed class StudyPlansController : ControllerBase
     {
         var result = await handler.Handle(new GetStudyPlanByIdQuery(id), cancellationToken);
         return result is null ? NotFound() : Ok(result);
+    }
+
+    [HttpPost("{id:guid}/pause")]
+    public async Task<IActionResult> Pause(Guid id,[FromServices] ICommandHandler<PauseStudyPlanCommand, int> handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.Handle(new PauseStudyPlanCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/resume")]
+    public async Task<IActionResult> Resume(Guid id, [FromServices] ICommandHandler<ResumeStudyPlanCommand, int> handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.Handle(new ResumeStudyPlanCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/cancel")]
+    public async Task<IActionResult> Cancel(Guid id, [FromServices] ICommandHandler<CancelStudyPlanCommand, int> handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.Handle(new CancelStudyPlanCommand(id),cancellationToken);
+        return NoContent();
     }
 }

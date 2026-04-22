@@ -29,5 +29,29 @@ public sealed class StudyPlan : BaseEntity
         DailyTargetMinutes = dailyTargetMinutes;
         Status = PlanStatus.Active;
     }
+
+    public void Pause()
+    {
+        if (Status != PlanStatus.Active)
+            throw new InvalidOperationException("Only active plans can be paused");
+
+        Status = PlanStatus.Paused;
+    }
+
+    public void Resume()
+    {
+        if (Status != PlanStatus.Paused)
+            throw new InvalidOperationException("Only paused plans can be resumed");
+
+        Status = PlanStatus.Active;
+    }
+
+    public void Cancel()
+    {
+        if (Status == PlanStatus.Completed)
+            throw new InvalidOperationException("Completed plan cannot be canceled");
+
+        Status = PlanStatus.Canceled;
+    }
     public void Complete() => Status = PlanStatus.Completed;
 }
