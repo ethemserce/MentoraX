@@ -1,4 +1,5 @@
 using MentoraX.Api.Contracts.StudyPlans;
+using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.DTOs;
 using MentoraX.Application.Features.StudyPlans.Commands;
@@ -31,10 +32,25 @@ public sealed class StudyPlansController : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("{id:guid}")]
+    [HttpGet]
+    public async Task<IActionResult> GetPlans(
+    [FromServices] ICurrentUserService currentUserService,
+    [FromServices] IQueryHandler<GetStudyPlansQuery, IReadOnlyCollection<StudyPlanDto>> handler,
+    CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId();
+
+        var result = await handler.Handle(
+            new GetStudyPlansQuery(userId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{id:Guid}")]
     public async Task<IActionResult> GetById(
         Guid id,
-        [FromServices] IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto?> handler,
+        [FromServices] IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto> handler,
         CancellationToken cancellationToken)
     {
         var result = await handler.Handle(new GetStudyPlanByIdQuery(id), cancellationToken);

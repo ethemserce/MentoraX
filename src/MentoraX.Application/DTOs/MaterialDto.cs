@@ -1,3 +1,15 @@
 namespace MentoraX.Application.DTOs;
 
-public sealed record MaterialDto(Guid Id, Guid UserId, string Title, string MaterialType, string Content, int EstimatedDurationMinutes, string? Description, string? Tags);
+public sealed record MaterialDto(
+    Guid Id,
+    Guid UserId,
+    string Title,
+    string MaterialType,
+    string Content,
+    int EstimatedDurationMinutes,
+    string? Description,
+    string? Tags,
+    bool HasActivePlan,
+    Guid? ActivePlanId,
+    string? ActivePlanTitle
+);

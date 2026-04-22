@@ -15,7 +15,7 @@ public sealed class LearningMaterial : BaseEntity
     public User? User { get; private set; }
     public ICollection<StudyProgress> StudyProgresses { get; set; } = new List<StudyProgress>();
     public ICollection<StudySession> StudySessions { get; set; } = new List<StudySession>();
-
+    public ICollection<StudyPlan> StudyPlans { get; private set; } = new List<StudyPlan>();
     private LearningMaterial() { }
 
     public LearningMaterial(Guid userId, string title, MaterialType materialType, string content, int estimatedDurationMinutes, string? description = null, string? tags = null)

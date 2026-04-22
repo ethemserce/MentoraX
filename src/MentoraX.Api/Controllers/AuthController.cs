@@ -2,6 +2,7 @@ using MentoraX.Api.Contracts.Auth;
 using MentoraX.Application.Common;
 using MentoraX.Application.DTOs;
 using MentoraX.Application.Features.Auth.Commands;
+using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MentoraX.Api.Controllers;

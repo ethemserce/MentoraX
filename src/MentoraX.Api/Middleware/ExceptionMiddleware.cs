@@ -89,7 +89,7 @@ public sealed class ExceptionMiddleware
             default:
                 context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 response.Error.Code = "internal_error";
-                response.Error.Message = "An unexpected error occurred.";
+                response.Error.Message =  ex.Message;
                 break;
         }
 

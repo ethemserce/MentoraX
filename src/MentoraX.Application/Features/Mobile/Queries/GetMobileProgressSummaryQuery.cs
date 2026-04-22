@@ -26,7 +26,7 @@ public sealed class GetMobileProgressSummaryQueryHandler(IApplicationDbContext _
             .AsNoTracking()
             .CountAsync(x =>
                 x.UserId == query.UserId &&
-                x.Status.IsActive(),
+                x.Status == PlanStatus.Active,
                 cancellationToken);
 
         var progresses = await _dbContext.StudyProgresses

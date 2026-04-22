@@ -54,6 +54,15 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FlutterWeb",
+        policy =>
+        {
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        });
+});
+
 builder.Services.AddScoped<IValidationPipeline, ValidationPipeline>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateMaterialCommandValidator>();
 
@@ -68,9 +77,9 @@ builder.Services.AddScoped<ICommandHandler<CompleteStudySessionCommand, StudySes
 builder.Services.AddScoped<ICommandHandler<StartStudySessionCommand, NextStudySessionDto>, StartStudySessionCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<RegisterMobileDeviceCommand, MobileDeviceDto>, RegisterMobileDeviceCommandHandler>();
 
-builder.Services.AddScoped<IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>>, GetMaterialsQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto?>, GetStudyPlanByIdQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetDueStudySessionsQuery, IReadOnlyCollection<StudySessionDto>>, GetDueStudySessionsQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto?>,GetStudyPlanByIdQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetStudyPlansQuery, IReadOnlyCollection<StudyPlanDto>>,GetStudyPlansQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>>,GetMaterialsQueryHandler>(); builder.Services.AddScoped<IQueryHandler<GetDueStudySessionsQuery, IReadOnlyCollection<StudySessionDto>>, GetDueStudySessionsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStudyProgressQuery, StudyProgressDto?>, GetStudyProgressQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMobileDashboardQuery, MobileDashboardDto>, GetMobileDashboardQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetNextStudySessionQuery, NextStudySessionDto?>, GetNextStudySessionQueryHandler>();
@@ -90,6 +99,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseCors("FlutterWeb");
 
 app.UseHttpsRedirection();
 app.UseAuthentication();
