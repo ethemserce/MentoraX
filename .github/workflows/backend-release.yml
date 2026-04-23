@@ -1,0 +1,34 @@
+name: backend-release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore src/MentoraX.Api/MentoraX.Api.csproj
+
+      - name: Publish API
+        run: dotnet publish src/MentoraX.Api/MentoraX.Api.csproj -c Release -o ./release/api
+
+      - name: Zip release package
+        run: |
+          cd ./release
+          zip -r mentorax-api-release.zip api
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mentorax-api-release
+          path: ./release/mentorax-api-release.zip
