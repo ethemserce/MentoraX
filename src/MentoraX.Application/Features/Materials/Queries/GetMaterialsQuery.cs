@@ -21,29 +21,35 @@ public sealed class GetMaterialsQueryHandler(IApplicationDbContext dbContext)
             materialQuery = materialQuery.Where(x => x.UserId == query.UserId.Value);
 
         var result = await materialQuery
-            .OrderByDescending(x => x.CreatedAtUtc)
-            .Select(x => new MaterialDto(
-                x.Id,
-                x.UserId,
-                x.Title,
-                x.MaterialType.ToString(),
-                x.Content,
-                x.EstimatedDurationMinutes,
-                x.Description,
-                x.Tags,
-                x.StudyPlans.Any(p => p.Status == PlanStatus.Active),
-                x.StudyPlans
-                    .Where(p => p.Status == PlanStatus.Active)
-                    .OrderByDescending(p => p.CreatedAtUtc)
-                    .Select(p => (Guid?)p.Id)
-                    .FirstOrDefault(),
-                x.StudyPlans
-                    .Where(p => p.Status == PlanStatus.Active)
-                    .OrderByDescending(p => p.CreatedAtUtc)
-                    .Select(p => p.Title)
-                    .FirstOrDefault()
-            ))
-            .ToListAsync(cancellationToken);
+             .OrderByDescending(x => x.CreatedAtUtc)
+             .Select(x => new MaterialDto(
+                 x.Id,
+                 x.UserId,
+                 x.Title,
+                 x.MaterialType.ToString(),
+                 x.Content,
+                 x.EstimatedDurationMinutes,
+                 x.Description,
+                 x.Tags,
+                 dbContext.StudyPlans.Any(p =>
+                     p.LearningMaterialId == x.Id &&
+                     p.Status == PlanStatus.Active),
+                 dbContext.StudyPlans
+                     .Where(p =>
+                         p.LearningMaterialId == x.Id &&
+                         p.Status == PlanStatus.Active)
+                     .OrderByDescending(p => p.CreatedAtUtc)
+                     .Select(p => (Guid?)p.Id)
+                     .FirstOrDefault(),
+                 dbContext.StudyPlans
+                     .Where(p =>
+                         p.LearningMaterialId == x.Id &&
+                         p.Status == PlanStatus.Active)
+                     .OrderByDescending(p => p.CreatedAtUtc)
+                     .Select(p => p.Title)
+                     .FirstOrDefault()
+             ))
+             .ToListAsync(cancellationToken);
 
         return result;
     }
