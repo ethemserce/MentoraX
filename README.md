@@ -1,89 +1,172 @@
-# MentoraX
+# MentoraX Backend
 
-MentoraX is a planned learning and spaced repetition platform built with a modular .NET architecture.
+MentoraX is a learning and habit-building platform based on **spaced repetition**, **study planning**, and **progress tracking**.
 
-## Solution structure
+This repository contains the **.NET backend services** that power the MentoraX ecosystem.
 
-- `MentoraX.Api` → REST API
-- `MentoraX.Application` → use cases, CQRS, DTOs, abstractions
-- `MentoraX.Domain` → entities, enums, domain rules
-- `MentoraX.Infrastructure` → EF Core, persistence, implementations
-- `MentoraX.Worker` → background jobs for reminders and due session checks
-- `MentoraX.Tests` → starter test project
+---
 
-## Main capabilities in this starter
+## 🚀 Features
 
-- Create learning materials
-- Generate study plans
-- Compute spaced repetition sessions
-- List due sessions
-- Mark a session as completed
-- Worker job that scans upcoming and overdue sessions
+* User authentication (JWT)
+* Learning materials management
+* Study plan creation
+* Session scheduling
+* Session tracking & completion
+* Progress & streak calculation
+* Background worker for session monitoring
+* Clean Architecture (CQRS + layered design)
 
-## Notes
+---
 
-This environment does not include the .NET SDK, so I could not compile the project here.
-The codebase is organized to be compile-ready in a normal .NET 10 SDK environment, but you should run restore/build locally:
+## 🧱 Architecture
 
-```bash
-dotnet restore
-dotnet build
+The project follows **Clean Architecture**:
+
+```
+src/
+├── MentoraX.Api             → REST API layer
+├── MentoraX.Application     → Business logic (CQRS)
+├── MentoraX.Domain          → Core domain models
+├── MentoraX.Infrastructure  → EF Core, DB, external services
+├── MentoraX.Worker          → Background processing
+```
+
+---
+
+## 🧪 Tests
+
+```
+tests/
+└── MentoraX.Tests
+```
+
+---
+
+## ⚙️ Technologies
+
+* .NET 8+
+* Entity Framework Core
+* SQL Server
+* CQRS Pattern
+* Worker Services
+* REST API
+
+---
+
+## 🔧 Setup
+
+### 1. Clone repo
+
+```
+git clone https://github.com/ethemserce/MentoraX.git
+cd MentoraX
+```
+
+---
+
+### 2. Configure database
+
+Update:
+
+```
+src/MentoraX.Api/appsettings.json
+```
+
+Example:
+
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=localhost;Database=MentoraXDb;Trusted_Connection=True;"
+}
+```
+
+---
+
+### 3. Run migrations
+
+```
 dotnet ef database update --project src/MentoraX.Infrastructure --startup-project src/MentoraX.Api
+```
+
+---
+
+### 4. Run API
+
+```
 dotnet run --project src/MentoraX.Api
 ```
 
-## Suggested local setup
+Swagger:
 
-1. Install .NET 10 SDK preview/stable matching your machine.
-2. Update the SQL Server connection string in:
-   - `src/MentoraX.Api/appsettings.Development.json`
-   - `src/MentoraX.Worker/appsettings.Development.json`
-3. Apply migrations.
-4. Start API and Worker.
+```
+http://localhost:5107/swagger
+```
 
-## Initial API endpoints
+---
 
-- `POST /api/materials`
-- `GET /api/materials`
-- `POST /api/study-plans`
-- `GET /api/study-plans/{id}`
-- `GET /api/study-sessions/due?userId={guid}`
-- `POST /api/study-sessions/{sessionId}/complete`
+## 🔗 API Endpoints (Core)
 
-## Next recommended steps
+### Auth
 
-- Add authentication and authorization
-- Add file upload storage
-- Add AI orchestration module
-- Add notification providers
-- Add frontend (Next.js / mobile)
+* POST `/api/auth/login`
 
-- ### Completed
-- Clean Architecture
-- CQRS-based application layer
-- JWT authentication
-- Global exception handling
-- Validation pipeline
-- Adaptive learning engine
-- Mobile-first API endpoints
+### Materials
 
-### Mobile API
-- GET `/api/mobile/dashboard`
-- GET `/api/mobile/study-sessions/next`
-- POST `/api/mobile/study-sessions/{id}/start`
-- POST `/api/mobile/study-sessions/{id}/complete`
-- GET `/api/mobile/progress/summary`
-- POST `/api/mobile/devices`
+* GET `/api/materials`
+* POST `/api/materials`
 
-### Main Domain Concepts
-- User
-- LearningMaterial
-- StudyPlan
-- StudySession
-- StudyProgress
-- MobileDevice
+### Study Plans
 
-### Next Phase
-- Flutter mobile client
-- Push notifications
-- AI-assisted learning flows
+* POST `/api/study-plans`
+* GET `/api/study-plans`
+* GET `/api/study-plans/{id}`
+
+### Sessions
+
+* POST `/api/sessions/start`
+* POST `/api/sessions/complete`
+
+### Dashboard
+
+* GET `/api/mobile/dashboard`
+* GET `/api/mobile/progress-summary`
+
+---
+
+## 🔄 Background Worker
+
+Worker service periodically:
+
+* scans sessions
+* detects due sessions
+* prepares reminders (future extension: push notifications)
+
+---
+
+## 📱 Mobile App
+
+Flutter mobile application is located in:
+
+```
+mobile/mentorax
+```
+
+or in a separate repository:
+https://github.com/ethemserce/mentorax_mobile
+
+---
+
+## 🧠 Future Improvements
+
+* Push notifications (FCM)
+* Adaptive learning algorithms
+* AI-based recommendations
+* Multi-device sync
+* Analytics dashboard
+
+---
+
+## 👤 Author
+
+Ethem Serçe
