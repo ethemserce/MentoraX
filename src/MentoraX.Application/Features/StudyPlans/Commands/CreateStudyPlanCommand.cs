@@ -15,6 +15,7 @@ public sealed record CreateStudyPlanCommand(
     DateOnly StartDate,
     int DailyTargetMinutes,
     int? PreferredHour,
+    int? preferredMinute,
     IReadOnlyCollection<int>? DayOffsets) : ICommand<StudyPlanDto>;
 
 public sealed class CreateStudyPlanCommandHandler(
@@ -37,9 +38,10 @@ public sealed class CreateStudyPlanCommandHandler(
 
         var now = DateTime.UtcNow;
         var preferredHour = command.PreferredHour ?? 20;
+        var preferredMinute = command.preferredMinute ?? 00;
 
         var scheduledAtUtc = command.StartDate
-            .ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(preferredHour)), DateTimeKind.Local)
+            .ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(preferredHour,preferredMinute)), DateTimeKind.Local)
             .ToUniversalTime();
 
         var plan = new StudyPlan(userId, material.Id, command.Title, command.StartDate, command.DailyTargetMinutes)

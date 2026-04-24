@@ -7,5 +7,5 @@ public interface IStudyPlanGenerator
 {
     IReadOnlyCollection<StudySession> GenerateSessions(StudyPlan plan, Guid userId,
     Guid learningMaterialId,
-    Guid studyProgressId, int preferredHour, SpacedRepetitionRule rule);
+    Guid studyProgressId, int preferredHour,int preferredMinute, SpacedRepetitionRule rule);
 }

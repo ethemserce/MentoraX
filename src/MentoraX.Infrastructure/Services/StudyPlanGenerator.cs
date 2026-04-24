@@ -10,12 +10,12 @@ public sealed class StudyPlanGenerator : IStudyPlanGenerator
         Guid userId,
         Guid learningMaterialId,
         Guid studyProgressId,
-        int preferredHour, SpacedRepetitionRule rule)
+        int preferredHour,int preferredMinute, SpacedRepetitionRule rule)
     {
         var sessions = new List<StudySession>();
 
         var start = plan.StartDate
-            .ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(preferredHour)), DateTimeKind.Local)
+            .ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(preferredHour, preferredMinute)), DateTimeKind.Local)
             .ToUniversalTime();
 
         var sequence = 1;

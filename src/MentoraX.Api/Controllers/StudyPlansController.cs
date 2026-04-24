@@ -27,6 +27,7 @@ public sealed class StudyPlansController : ControllerBase
             request.StartDate,
             request.DailyTargetMinutes,
             request.PreferredHour,
+            request.PreferredMinute,
             request.DayOffsets);
 
         var result = await handler.Handle(command, cancellationToken);
