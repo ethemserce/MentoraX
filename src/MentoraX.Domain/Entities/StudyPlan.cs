@@ -15,6 +15,7 @@ public sealed class StudyPlan : BaseEntity
     public LearningMaterial? LearningMaterial { get; private set; }
     public ICollection<StudyProgress> StudyProgresses { get; set; } = new List<StudyProgress>();
     public ICollection<StudySession> StudySessions { get; private set; } = new List<StudySession>();
+    public ICollection<StudyPlanItem> Items { get; private set; } = new List<StudyPlanItem>();
 
     public void AddSession(StudySession session) => StudySessions.Add(session);
 
@@ -51,7 +52,7 @@ public sealed class StudyPlan : BaseEntity
         if (Status == PlanStatus.Completed)
             throw new InvalidOperationException("Completed plan cannot be canceled");
 
-        Status = PlanStatus.Canceled;
+        Status = PlanStatus.Cancelled;
     }
     public void Complete() => Status = PlanStatus.Completed;
 }

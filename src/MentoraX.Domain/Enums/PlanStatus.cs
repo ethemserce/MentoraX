@@ -7,7 +7,7 @@ public enum PlanStatus
     Completed = 3,
     Archived = 4,
     Paused=5,
-    Canceled= 6
+    Cancelled = 6
 }
 
 public static class PlanStatusExtensions

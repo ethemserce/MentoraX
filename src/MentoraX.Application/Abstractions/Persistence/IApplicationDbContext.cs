@@ -11,5 +11,7 @@ public interface IApplicationDbContext
     DbSet<StudySession> StudySessions { get; }
     DbSet<StudyProgress> StudyProgresses { get; }
     DbSet<MobileDevice> MobileDevices { get; }
+    DbSet<MaterialChunk> MaterialChunks {  get; }
+    DbSet<StudyPlanItem> StudyPlanItems { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

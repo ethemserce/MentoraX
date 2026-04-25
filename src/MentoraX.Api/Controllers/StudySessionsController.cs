@@ -6,6 +6,7 @@ using MentoraX.Application.Features.StudySessions.Commands;
 using MentoraX.Application.Features.StudySessions.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Reflection;
 
 namespace MentoraX.Api.Controllers;
 
@@ -34,5 +35,29 @@ public sealed class StudySessionsController : ControllerBase
                  request.ReviewNotes
             ),
             cancellationToken); return Ok(result);
+    }
+
+    [HttpPost("{sessionId:guid}/start")]
+    public async Task<IActionResult> Start(
+    Guid sessionId, [FromServices] ICommandHandler<StartSessionCommand, StudySessionDto> handler,
+    CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(
+            new StartSessionCommand(sessionId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("{sessionId:guid}")]
+    public async Task<IActionResult> GetById(
+    Guid sessionId, [FromServices] IQueryHandler<GetStudySessionByIdQuery, StudySessionDetailDto> handler,
+    CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(
+            new GetStudySessionByIdQuery(sessionId),
+            cancellationToken);
+
+        return result is null ? NotFound() : Ok(result);
     }
 }

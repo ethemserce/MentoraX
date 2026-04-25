@@ -9,6 +9,9 @@ public sealed class StudySession : BaseEntity
     public Guid UserId { get; set; }
     public Guid StudyProgressId { get; set; }
 
+    public Guid? StudyPlanItemId { get; set; }
+    public StudyPlanItem? StudyPlanItem { get; set; }
+
     public DateTime ScheduledAtUtc { get; set; }
     public DateTime? StartedAtUtc { get; set; }
     public DateTime? CompletedAtUtc { get; set; }
@@ -50,5 +53,11 @@ public sealed class StudySession : BaseEntity
         ActualDurationMinutes = actualDurationMinutes;
         ReviewNotes = reviewNotes;
         Touch();
+    }
+
+    public void AttachToPlanItem(Guid studyPlanItemId)
+    {
+        StudyPlanItemId = studyPlanItemId;
+        UpdatedAtUtc = DateTime.UtcNow;
     }
 }

@@ -32,6 +32,21 @@ public sealed class CreateMaterialCommandHandler(
         dbContext.LearningMaterials.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        var chunk = new MaterialChunk(
+            learningMaterialId: entity.Id,
+            orderNo: 1,
+            content: entity.Content,
+            title: entity.Title,
+            summary: entity.Description,
+            keywords: entity.Tags,
+            difficultyLevel: 1,
+            estimatedStudyMinutes: entity.EstimatedDurationMinutes,
+            isGeneratedByAI: false
+        );
+
+        dbContext.MaterialChunks.Add(chunk);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
         return new MaterialDto(
             entity.Id,
             entity.UserId,

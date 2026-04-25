@@ -44,6 +44,13 @@ public sealed class StudySessionConfiguration : IEntityTypeConfiguration<StudySe
             .HasForeignKey(x => x.StudyProgressId)
             .OnDelete(DeleteBehavior.NoAction);
 
+        builder.HasIndex(x => x.StudyPlanItemId);
+
+        builder.HasOne(x => x.StudyPlanItem)
+            .WithMany(x => x.StudySessions)
+            .HasForeignKey(x => x.StudyPlanItemId)
+            .OnDelete(DeleteBehavior.NoAction);
+
         builder.HasIndex(x => new { x.UserId, x.ScheduledAtUtc, x.IsCompleted });
     }
 }

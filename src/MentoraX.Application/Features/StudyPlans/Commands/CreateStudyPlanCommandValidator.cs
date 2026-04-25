@@ -22,7 +22,12 @@ public sealed class CreateStudyPlanCommandValidator : AbstractValidator<CreateSt
 
         RuleFor(x => x.PreferredHour)
             .InclusiveBetween(0, 23)
-            .When(x => x.PreferredHour.HasValue)
+            .When(x => x.PreferredHour != null)
             .WithMessage("PreferredHour must be between 0 and 23.");
+
+        RuleFor(x => x.PreferredMinute)
+          .InclusiveBetween(0, 59)
+          .When(x => x.PreferredMinute != null)
+          .WithMessage("PreferredMinute must be between 0 and 59.");
     }
 }
