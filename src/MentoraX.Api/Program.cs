@@ -76,16 +76,10 @@ builder.Services.AddScoped<ICommandHandler<CreateStudyPlanCommand, StudyPlanDto>
 builder.Services.AddScoped<ICommandHandler<CompleteStudySessionCommand, StudySessionDto>, CompleteStudySessionCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<StartStudySessionCommand, NextStudySessionDto>, StartStudySessionCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<RegisterMobileDeviceCommand, MobileDeviceDto>, RegisterMobileDeviceCommandHandler>();
-builder.Services.AddScoped<
-    ICommandHandler<ResumeStudyPlanCommand, int>,
-    ResumeStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<ResumeStudyPlanCommand, int>,ResumeStudyPlanCommandHandler>();
 
-builder.Services.AddScoped<
-    ICommandHandler<CancelStudyPlanCommand, int>,
-    CancelStudyPlanCommandHandler>();
-builder.Services.AddScoped<
-    ICommandHandler<PauseStudyPlanCommand, int>,
-    PauseStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<CancelStudyPlanCommand, int>,    CancelStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<PauseStudyPlanCommand, int>,PauseStudyPlanCommandHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto?>,GetStudyPlanByIdQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStudyPlansQuery, IReadOnlyCollection<StudyPlanDto>>,GetStudyPlansQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>>,GetMaterialsQueryHandler>(); builder.Services.AddScoped<IQueryHandler<GetDueStudySessionsQuery, IReadOnlyCollection<StudySessionDto>>, GetDueStudySessionsQueryHandler>();
@@ -94,7 +88,7 @@ builder.Services.AddScoped<IQueryHandler<GetMobileDashboardQuery, MobileDashboar
 builder.Services.AddScoped<IQueryHandler<GetNextStudySessionQuery, NextStudySessionDto?>, GetNextStudySessionQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMobileProgressSummaryQuery, MobileProgressSummaryDto>, GetMobileProgressSummaryQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStudySessionByIdQuery, StudySessionDetailDto>, GetStudySessionByIdQueryHandler>();
-
+builder.Services.AddScoped<IQueryHandler<GetMaterialByIdQuery, MaterialDto?>,GetMaterialByIdQueryHandler>();
 builder.Services.AddScoped<IStudyScheduleEngine, StudyScheduleEngine>();
 
 builder.Services.Decorate(typeof(ICommandHandler<,>), typeof(ValidatedCommandHandler<,>));

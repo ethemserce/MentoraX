@@ -6,6 +6,7 @@ using MentoraX.Application.Features.Materials.Commands;
 using MentoraX.Application.Features.Materials.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Reflection;
 
 namespace MentoraX.Api.Controllers;
 
@@ -27,5 +28,18 @@ public sealed class MaterialsController : ControllerBase
     {
         var result = await handler.Handle(new GetMaterialsQuery(currentUserService.GetRequiredUserId()), cancellationToken);
         return Ok(result);
+    }
+
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> GetById(
+    Guid id,
+    [FromServices] IQueryHandler<GetMaterialByIdQuery, MaterialDto> handler,
+    CancellationToken cancellationToken)
+    {
+        var result = await handler.Handle(
+            new GetMaterialByIdQuery(id),
+            cancellationToken);
+
+        return result is null ? NotFound() : Ok(result);
     }
 }

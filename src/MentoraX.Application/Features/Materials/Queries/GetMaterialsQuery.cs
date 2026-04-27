@@ -1,4 +1,5 @@
 using MentoraX.Application.Abstractions.Persistence;
+using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.DTOs;
 using MentoraX.Domain.Enums;
@@ -6,9 +7,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MentoraX.Application.Features.Materials.Queries;
 
-public sealed record GetMaterialsQuery(Guid? UserId) : IQuery<IReadOnlyCollection<MaterialDto>>;
+public sealed record GetMaterialsQuery(Guid userId) : IQuery<IReadOnlyCollection<MaterialDto>>;
 
-public sealed class GetMaterialsQueryHandler(IApplicationDbContext dbContext)
+public sealed class GetMaterialsQueryHandler(IApplicationDbContext dbContext, ICurrentUserService currentUserService)
     : IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>>
 {
     public async Task<IReadOnlyCollection<MaterialDto>> Handle(
@@ -17,8 +18,7 @@ public sealed class GetMaterialsQueryHandler(IApplicationDbContext dbContext)
     {
         var materialQuery = dbContext.LearningMaterials.AsNoTracking();
 
-        if (query.UserId.HasValue)
-            materialQuery = materialQuery.Where(x => x.UserId == query.UserId.Value);
+        materialQuery = materialQuery.Where(x => x.UserId == query.userId);
 
         var result = await materialQuery
              .OrderByDescending(x => x.CreatedAtUtc)

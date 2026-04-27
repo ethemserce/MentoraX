@@ -4,9 +4,6 @@ using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace MentoraX.Application.Features.StudySessions.Commands;
 
@@ -44,6 +41,7 @@ public sealed class StartSessionCommandHandler(
             session.StudyPlanItem.MarkInProgress();
         }
 
+        session.StartedAtUtc ??= DateTime.UtcNow;
         session.UpdatedAtUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);

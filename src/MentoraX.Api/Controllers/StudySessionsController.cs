@@ -6,7 +6,6 @@ using MentoraX.Application.Features.StudySessions.Commands;
 using MentoraX.Application.Features.StudySessions.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Reflection;
 
 namespace MentoraX.Api.Controllers;
 
