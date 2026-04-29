@@ -34,15 +34,38 @@ public sealed class CompleteStudySessionCommandHandler(
             .Include(x => x.StudyProgress)
             .Include(x => x.StudyPlan)
             .Include(x => x.StudyPlanItem)
-            .FirstOrDefaultAsync(x =>
-                x.Id == command.StudySessionId &&
-                x.UserId == userId,
+            .FirstOrDefaultAsync(
+                x => x.Id == command.StudySessionId &&
+                     x.UserId == userId,
                 cancellationToken);
 
         if (session is null)
+        {
             throw new AppNotFoundException(
                 "Study session not found.",
                 "study_session_not_found");
+        }
+
+        if (session.StudyPlan is null)
+        {
+            throw new AppConflictException(
+                "Session does not belong to a valid study plan.",
+                "session_plan_not_found");
+        }
+
+        if (session.StudyPlan.Status != PlanStatus.Active)
+        {
+            throw new AppConflictException(
+                "Only sessions of active plans can be completed.",
+                "plan_is_not_active");
+        }
+
+        if (session.IsCompleted)
+        {
+            throw new AppConflictException(
+                "Session has already been completed.",
+                "session_already_completed");
+        }
 
         var now = DateTime.UtcNow;
 

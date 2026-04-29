@@ -3,6 +3,7 @@ using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
+using MentoraX.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentoraX.Application.Features.StudySessions.Commands;
@@ -24,25 +25,47 @@ public sealed class StartSessionCommandHandler(
             .Include(x => x.StudyPlan)
             .Include(x => x.StudyPlanItem)
             .FirstOrDefaultAsync(
-                x => x.Id == command.SessionId && x.UserId == userId,
+                x => x.Id == command.SessionId &&
+                     x.UserId == userId,
                 cancellationToken);
 
         if (session is null)
+        {
             throw new AppNotFoundException(
                 "Study session was not found.",
                 "study_session_not_found");
+        }
+
+        if (session.StudyPlan is null)
+        {
+            throw new AppConflictException(
+                "Session does not belong to a valid study plan.",
+                "session_plan_not_found");
+        }
+
+        if (session.StudyPlan.Status != PlanStatus.Active)
+        {
+            throw new AppConflictException(
+                "Only sessions of active plans can be started.",
+                "plan_is_not_active");
+        }
 
         if (session.IsCompleted)
-            throw new AppConflictException("Completed session cannot be started.",
+        {
+            throw new AppConflictException(
+                "Completed session cannot be started.",
                 "session_already_completed");
+        }
+
+        var now = DateTime.UtcNow;
+
+        session.StartedAtUtc ??= now;
+        session.UpdatedAtUtc = now;
 
         if (session.StudyPlanItem is not null)
         {
             session.StudyPlanItem.MarkInProgress();
         }
-
-        session.StartedAtUtc ??= DateTime.UtcNow;
-        session.UpdatedAtUtc = DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
