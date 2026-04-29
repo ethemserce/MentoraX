@@ -82,7 +82,9 @@ public sealed class GetStudyPlansQueryHandler(IApplicationDbContext dbContext)
                                     i.MaterialChunk.Summary,
                                     i.MaterialChunk.Keywords,
                                     i.MaterialChunk.DifficultyLevel,
-                                    i.MaterialChunk.EstimatedStudyMinutes
+                                    i.MaterialChunk.EstimatedStudyMinutes,
+                                    i.MaterialChunk.CharacterCount,
+                                    i.MaterialChunk.IsGeneratedByAI
                                 ),
                             i.StudySessions
                                 .OrderBy(s => s.Order)

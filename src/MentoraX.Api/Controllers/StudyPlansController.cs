@@ -82,4 +82,17 @@ public sealed class StudyPlansController : ControllerBase
         await handler.Handle(new CancelStudyPlanCommand(id),cancellationToken);
         return NoContent();
     }
+
+    [HttpPost("{id:guid}/complete")]
+    public async Task<IActionResult> Complete(
+    Guid id,
+    [FromServices] ICommandHandler<CompleteStudyPlanCommand, int> handler,
+    CancellationToken cancellationToken)
+    {
+        await handler.Handle(
+            new CompleteStudyPlanCommand(id),
+            cancellationToken);
+
+        return NoContent();
+    }
 }

@@ -78,5 +78,20 @@ namespace MentoraX.Domain.Entities
             CharacterCount = content.Length;
             UpdatedAtUtc = DateTime.UtcNow;
         }
+
+        public void ChangeOrder(int orderNo)
+        {
+            if (orderNo <= 0)
+                throw new ArgumentOutOfRangeException(nameof(orderNo), "Order number must be greater than zero.");
+
+            OrderNo = orderNo;
+            UpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        public void ChangeOrderTemporary(int orderNo)
+        {
+            OrderNo = orderNo;
+            UpdatedAtUtc = DateTime.UtcNow;
+        }
     }
 }

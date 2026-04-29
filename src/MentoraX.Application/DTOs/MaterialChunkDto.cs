@@ -13,6 +13,8 @@ public sealed record MaterialChunkDto(
  string? Summary,
  string? Keywords,
  int DifficultyLevel,
- int EstimatedStudyMinutes
+ int EstimatedStudyMinutes,
+int CharacterCount,
+    bool IsGeneratedByAI
 );
 

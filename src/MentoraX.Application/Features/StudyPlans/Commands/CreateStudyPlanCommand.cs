@@ -6,7 +6,6 @@ using MentoraX.Application.DTOs;
 using MentoraX.Domain.Entities;
 using MentoraX.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
-using static System.Collections.Specialized.BitVector32;
 
 namespace MentoraX.Application.Features.StudyPlans.Commands;
 
@@ -15,42 +14,81 @@ public sealed record CreateStudyPlanCommand(
     string Title,
     DateOnly StartDate,
     int DailyTargetMinutes,
-    int PreferredHour,
-    int PreferredMinute,
-    IReadOnlyCollection<int>? DayOffsets) : ICommand<StudyPlanDto>;
+    int? PreferredHour,
+    int? PreferredMinute,
+    IReadOnlyCollection<int>? DayOffsets
+) : ICommand<StudyPlanDto>;
 
 public sealed class CreateStudyPlanCommandHandler(
     IApplicationDbContext dbContext,
-    ICurrentUserService _currentUserService)
+    ICurrentUserService currentUserService)
     : ICommandHandler<CreateStudyPlanCommand, StudyPlanDto>
 {
-    public async Task<StudyPlanDto> Handle(CreateStudyPlanCommand command, CancellationToken cancellationToken)
+    public async Task<StudyPlanDto> Handle(
+        CreateStudyPlanCommand command,
+        CancellationToken cancellationToken)
     {
-        var userId = _currentUserService.GetRequiredUserId();
+        var userId = currentUserService.GetRequiredUserId();
 
         var material = await dbContext.LearningMaterials
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                x => x.Id == command.LearningMaterialId && x.UserId == userId,
+                x => x.Id == command.LearningMaterialId &&
+                     x.UserId == userId,
                 cancellationToken);
 
         if (material is null)
-            throw new AppNotFoundException("Learning material was not found for the user.", "learning_material_not_found");
+        {
+            throw new AppNotFoundException(
+                "Learning material was not found for the user.",
+                "learning_material_not_found");
+        }
+
+        var chunks = await dbContext.MaterialChunks
+            .AsNoTracking()
+            .Where(x => x.LearningMaterialId == material.Id)
+            .OrderBy(x => x.OrderNo)
+            .ToListAsync(cancellationToken);
+
+        if (chunks.Count == 0)
+        {
+            throw new AppConflictException(
+                "No material chunks found for this material.",
+                "material_chunks_not_found");
+        }
 
         var now = DateTime.UtcNow;
-        var preferredHour = command.PreferredHour;
-        var preferredMinute = command.PreferredMinute;
 
-        var scheduledAtUtc = command.StartDate
-            .ToDateTime(TimeOnly.FromTimeSpan(TimeSpan.FromHours(preferredHour,preferredMinute)), DateTimeKind.Local)
-            .ToUniversalTime();
+        var preferredHour = command.PreferredHour ?? 20;
+        var preferredMinute = command.PreferredMinute ?? 0;
 
-        var plan = new StudyPlan(userId, material.Id, command.Title, command.StartDate, command.DailyTargetMinutes)
+        if (preferredHour < 0 || preferredHour > 23)
+        {
+            throw new AppConflictException(
+                "Preferred hour must be between 0 and 23.",
+                "invalid_preferred_hour");
+        }
+
+        if (preferredMinute < 0 || preferredMinute > 59)
+        {
+            throw new AppConflictException(
+                "Preferred minute must be between 0 and 59.",
+                "invalid_preferred_minute");
+        }
+
+        var plan = new StudyPlan(
+            userId,
+            material.Id,
+            command.Title,
+            command.StartDate,
+            command.DailyTargetMinutes)
         {
             Status = PlanStatus.Active,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
+
+        dbContext.StudyPlans.Add(plan);
 
         var progress = new MentoraX.Domain.Entities.StudyProgress
         {
@@ -63,57 +101,56 @@ public sealed class CreateStudyPlanCommandHandler(
             EasinessFactor = 2.5,
             SuccessStreak = 0,
             FailureCount = 0,
-            NextReviewAtUtc = scheduledAtUtc,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
 
-
-
-        dbContext.StudyPlans.Add(plan);
         dbContext.StudyProgresses.Add(progress);
 
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        var chunks = await dbContext.MaterialChunks
-    .Where(x => x.LearningMaterialId == command.LearningMaterialId)
-    .OrderBy(x => x.OrderNo)
-    .ToListAsync(cancellationToken);
-
-        if (!chunks.Any())
-        {
-            throw new AppConflictException(
-                "No material chunks found for this learning material."
-            );
-        }
-
-        var orderNo = 1;
-
-        var sessions = new List<StudySession>();
         var studyPlanItems = new List<StudyPlanItem>();
+        var sessions = new List<StudySession>();
 
-        foreach (var chunk in chunks)
+        var dayOffsets = command.DayOffsets is { Count: > 0 }
+            ? command.DayOffsets.OrderBy(x => x).ToList()
+            : Enumerable.Range(0, chunks.Count).ToList();
+
+        for (var index = 0; index < chunks.Count; index++)
         {
-            var plannedDateUtc = DateTime.SpecifyKind(
-                command.StartDate.ToDateTime(
-                    new TimeOnly(command.PreferredHour, command.PreferredMinute)
-                ),
-                DateTimeKind.Local
-            ).ToUniversalTime();
+            var chunk = chunks[index];
 
-            var studyPlanItem = new StudyPlanItem(
+            var offset = index < dayOffsets.Count
+                ? dayOffsets[index]
+                : dayOffsets.Last() + (index - dayOffsets.Count + 1);
+
+            var plannedDate = command.StartDate.AddDays(offset);
+
+            var localDateTime = plannedDate.ToDateTime(
+                new TimeOnly(preferredHour, preferredMinute),
+                DateTimeKind.Local);
+
+            var plannedDateUtc = localDateTime.ToUniversalTime();
+
+            if (index == 0)
+            {
+                progress.NextReviewAtUtc = plannedDateUtc;
+            }
+
+            var orderNo = index + 1;
+
+            var item = new StudyPlanItem(
                 studyPlanId: plan.Id,
                 materialChunkId: chunk.Id,
-                title: chunk.Title ?? plan.Title,
+                title: chunk.Title ?? $"{material.Title} - Part {orderNo}",
                 description: chunk.Summary,
                 itemType: StudyItemType.NewStudy,
                 orderNo: orderNo,
                 plannedDateUtc: plannedDateUtc,
-                plannedStartTime: new TimeSpan(command.PreferredHour, command.PreferredMinute, 0),
-                plannedEndTime: new TimeSpan(command.PreferredHour, command.PreferredMinute, 0)
-                    .Add(TimeSpan.FromMinutes(plan.DailyTargetMinutes)),
-                durationMinutes: plan.DailyTargetMinutes,
+                plannedStartTime: new TimeSpan(preferredHour, preferredMinute, 0),
+                plannedEndTime: new TimeSpan(preferredHour, preferredMinute, 0)
+                    .Add(TimeSpan.FromMinutes(chunk.EstimatedStudyMinutes)),
+                durationMinutes: chunk.EstimatedStudyMinutes > 0
+                    ? chunk.EstimatedStudyMinutes
+                    : command.DailyTargetMinutes,
                 priority: 1,
                 isMandatory: true,
                 sourceReason: "Generated from material chunk"
@@ -123,8 +160,8 @@ public sealed class CreateStudyPlanCommandHandler(
             {
                 Id = Guid.NewGuid(),
                 StudyPlanId = plan.Id,
+                StudyPlanItemId = item.Id,
                 LearningMaterialId = material.Id,
-                StudyPlanItemId = studyPlanItem.Id,
                 UserId = userId,
                 StudyProgressId = progress.Id,
                 ScheduledAtUtc = plannedDateUtc,
@@ -134,93 +171,91 @@ public sealed class CreateStudyPlanCommandHandler(
                 UpdatedAtUtc = now
             };
 
-            studyPlanItem.StudySessions.Add(session);
-            chunk.StudyPlanItems.Add(studyPlanItem);
-
+            dbContext.StudyPlanItems.Add(item);
             dbContext.StudySessions.Add(session);
-            dbContext.StudyPlanItems.Add(studyPlanItem);
 
-            studyPlanItems.Add(studyPlanItem);
+            studyPlanItems.Add(item);
             sessions.Add(session);
-            orderNo++;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new StudyPlanDto(
-     plan.Id,
-     plan.UserId,
-     plan.LearningMaterialId,
-     plan.Title,
-     plan.StartDate,
-     plan.DailyTargetMinutes,
-     plan.Status.ToString(),
+            plan.Id,
+            plan.UserId,
+            plan.LearningMaterialId,
+            plan.Title,
+            plan.StartDate,
+            plan.DailyTargetMinutes,
+            plan.Status.ToString(),
 
-     sessions
-         .OrderBy(s => s.Order)
-         .Select(s => new StudySessionDto(
-             s.Id,
-             s.StudyPlanId,
-             s.Order,
-             s.ScheduledAtUtc,
-             plan.DailyTargetMinutes,
-             s.IsCompleted ? "Completed" : "Planned",
-             s.CompletedAtUtc,
-             s.ActualDurationMinutes,
-             s.ReviewNotes
-         ))
-         .ToList(),
+            sessions
+                .OrderBy(x => x.Order)
+                .Select(x => new StudySessionDto(
+                    x.Id,
+                    x.StudyPlanId,
+                    x.Order,
+                    x.ScheduledAtUtc,
+                    plan.DailyTargetMinutes,
+                    x.IsCompleted ? "Completed" : "Planned",
+                    x.CompletedAtUtc,
+                    x.ActualDurationMinutes,
+                    x.ReviewNotes
+                ))
+                .ToList(),
 
-     studyPlanItems
-         .OrderBy(i => i.OrderNo)
-         .Select(i =>
-         {
-             var chunk = chunks.FirstOrDefault(c => c.Id == i.MaterialChunkId);
+            studyPlanItems
+                .OrderBy(x => x.OrderNo)
+                .Select(item =>
+                {
+                    var chunk = chunks.FirstOrDefault(x => x.Id == item.MaterialChunkId);
 
-             return new StudyPlanItemDto(
-                 i.Id,
-                 i.StudyPlanId,
-                 i.MaterialChunkId,
-                 i.Title,
-                 i.Description,
-                 i.ItemType.ToString(),
-                 i.OrderNo,
-                 i.PlannedDateUtc,
-                 i.PlannedStartTime,
-                 i.PlannedEndTime,
-                 i.DurationMinutes,
-                 i.Status.ToString(),
-                 chunk is null
-                     ? null
-                     : new MaterialChunkDto(
-                         chunk.Id,
-                         chunk.LearningMaterialId,
-                         chunk.OrderNo,
-                         chunk.Title,
-                         chunk.Content,
-                         chunk.Summary,
-                         chunk.Keywords,
-                         chunk.DifficultyLevel,
-                         chunk.EstimatedStudyMinutes
-                     ),
-                 sessions
-                     .Where(s => s.StudyPlanItemId == i.Id)
-                     .OrderBy(s => s.Order)
-                     .Select(s => new StudySessionDto(
-                         s.Id,
-                         s.StudyPlanId,
-                         s.Order,
-                         s.ScheduledAtUtc,
-                         plan.DailyTargetMinutes,
-                         s.IsCompleted ? "Completed" : "Planned",
-                         s.CompletedAtUtc,
-                         s.ActualDurationMinutes,
-                         s.ReviewNotes
-                     ))
-                     .ToList()
-             );
-         })
-         .ToList()
- );
+                    return new StudyPlanItemDto(
+                        item.Id,
+                        item.StudyPlanId,
+                        item.MaterialChunkId,
+                        item.Title,
+                        item.Description,
+                        item.ItemType.ToString(),
+                        item.OrderNo,
+                        item.PlannedDateUtc,
+                        item.PlannedStartTime,
+                        item.PlannedEndTime,
+                        item.DurationMinutes,
+                        item.Status.ToString(),
+                        chunk is null
+                            ? null
+                            : new MaterialChunkDto(
+                                chunk.Id,
+                                chunk.LearningMaterialId,
+                                chunk.OrderNo,
+                                chunk.Title,
+                                chunk.Content,
+                                chunk.Summary,
+                                chunk.Keywords,
+                                chunk.DifficultyLevel,
+                                chunk.EstimatedStudyMinutes,
+                                chunk.CharacterCount,
+                                chunk.IsGeneratedByAI
+                            ),
+                        sessions
+                            .Where(s => s.StudyPlanItemId == item.Id)
+                            .OrderBy(s => s.Order)
+                            .Select(s => new StudySessionDto(
+                                s.Id,
+                                s.StudyPlanId,
+                                s.Order,
+                                s.ScheduledAtUtc,
+                                plan.DailyTargetMinutes,
+                                s.IsCompleted ? "Completed" : "Planned",
+                                s.CompletedAtUtc,
+                                s.ActualDurationMinutes,
+                                s.ReviewNotes
+                            ))
+                            .ToList()
+                    );
+                })
+                .ToList()
+        );
     }
 }

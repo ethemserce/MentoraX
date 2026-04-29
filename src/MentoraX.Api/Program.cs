@@ -1,9 +1,13 @@
+using FluentValidation;
 using MentoraX.Api.Middleware;
 using MentoraX.Application.Abstractions.Scheduling;
 using MentoraX.Application.Common;
+using MentoraX.Application.Common.Validation;
 using MentoraX.Application.DependencyInjection;
 using MentoraX.Application.DTOs;
 using MentoraX.Application.Features.Auth.Commands;
+using MentoraX.Application.Features.MaterialChunks.Commands;
+using MentoraX.Application.Features.MaterialChunks.Queries;
 using MentoraX.Application.Features.Materials.Commands;
 using MentoraX.Application.Features.Materials.Queries;
 using MentoraX.Application.Features.Mobile.Commands;
@@ -19,8 +23,6 @@ using MentoraX.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using FluentValidation;
-using MentoraX.Application.Common.Validation;
 using Scrutor;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -77,6 +79,11 @@ builder.Services.AddScoped<ICommandHandler<CompleteStudySessionCommand, StudySes
 builder.Services.AddScoped<ICommandHandler<StartStudySessionCommand, NextStudySessionDto>, StartStudySessionCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<RegisterMobileDeviceCommand, MobileDeviceDto>, RegisterMobileDeviceCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<ResumeStudyPlanCommand, int>,ResumeStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<UpdateMaterialChunkCommand, MaterialChunkDto>,UpdateMaterialChunkCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<CreateMaterialChunkCommand, MaterialChunkDto>,CreateMaterialChunkCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<DeleteMaterialChunkCommand, int>,DeleteMaterialChunkCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<CompleteStudyPlanCommand, int>,CompleteStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<ReorderMaterialChunksCommand, IReadOnlyCollection<MaterialChunkDto>>,ReorderMaterialChunksCommandHandler>();
 
 builder.Services.AddScoped<ICommandHandler<CancelStudyPlanCommand, int>,    CancelStudyPlanCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<PauseStudyPlanCommand, int>,PauseStudyPlanCommandHandler>();
@@ -90,6 +97,7 @@ builder.Services.AddScoped<IQueryHandler<GetMobileProgressSummaryQuery, MobilePr
 builder.Services.AddScoped<IQueryHandler<GetStudySessionByIdQuery, StudySessionDetailDto>, GetStudySessionByIdQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMaterialByIdQuery, MaterialDto?>,GetMaterialByIdQueryHandler>();
 builder.Services.AddScoped<IStudyScheduleEngine, StudyScheduleEngine>();
+builder.Services.AddScoped<IQueryHandler<GetMaterialChunksQuery, IReadOnlyCollection<MaterialChunkDto>>,GetMaterialChunksQueryHandler>();
 
 builder.Services.Decorate(typeof(ICommandHandler<,>), typeof(ValidatedCommandHandler<,>));
 builder.Services.Decorate(typeof(IQueryHandler<,>), typeof(ValidatedQueryHandler<,>));

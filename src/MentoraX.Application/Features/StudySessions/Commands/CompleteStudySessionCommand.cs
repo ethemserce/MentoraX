@@ -85,7 +85,18 @@ public sealed class CompleteStudySessionCommandHandler(
             progress.SuccessStreak += progressResult.SuccessStreakDelta;
         }
 
-        var nextOrder = session.Order + 1;
+        var maxItemOrder = await _dbContext.StudyPlanItems
+            .Where(x => x.StudyPlanId == session.StudyPlanId)
+            .Select(x => (int?)x.OrderNo)
+            .MaxAsync(cancellationToken) ?? 0;
+
+        var maxSessionOrder = await _dbContext.StudySessions
+            .Where(x => x.StudyPlanId == session.StudyPlanId)
+            .Select(x => (int?)x.Order)
+            .MaxAsync(cancellationToken) ?? 0;
+
+        var nextItemOrder = maxItemOrder + 1;
+        var nextSessionOrder = maxSessionOrder + 1;
 
         var nextPlanItem = new StudyPlanItem(
             studyPlanId: session.StudyPlanId,
@@ -93,7 +104,7 @@ public sealed class CompleteStudySessionCommandHandler(
             title: session.StudyPlanItem?.Title ?? session.StudyPlan.Title,
             description: session.StudyPlanItem?.Description,
             itemType: StudyItemType.Repetition,
-            orderNo: nextOrder,
+            orderNo: nextItemOrder,
             plannedDateUtc: progress.NextReviewAtUtc,
             plannedStartTime: null,
             plannedEndTime: null,
@@ -113,7 +124,7 @@ public sealed class CompleteStudySessionCommandHandler(
             StudyProgressId = progress.Id,
             ScheduledAtUtc = progress.NextReviewAtUtc,
             IsCompleted = false,
-            Order = nextOrder,
+            Order = nextSessionOrder,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
