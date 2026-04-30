@@ -23,7 +23,6 @@ using MentoraX.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using Scrutor;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,26 +77,26 @@ builder.Services.AddScoped<ICommandHandler<CreateStudyPlanCommand, StudyPlanDto>
 builder.Services.AddScoped<ICommandHandler<CompleteStudySessionCommand, StudySessionDto>, CompleteStudySessionCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<StartStudySessionCommand, NextStudySessionDto>, StartStudySessionCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<RegisterMobileDeviceCommand, MobileDeviceDto>, RegisterMobileDeviceCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<ResumeStudyPlanCommand, int>,ResumeStudyPlanCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<UpdateMaterialChunkCommand, MaterialChunkDto>,UpdateMaterialChunkCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<CreateMaterialChunkCommand, MaterialChunkDto>,CreateMaterialChunkCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<DeleteMaterialChunkCommand, int>,DeleteMaterialChunkCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<CompleteStudyPlanCommand, int>,CompleteStudyPlanCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<ReorderMaterialChunksCommand, IReadOnlyCollection<MaterialChunkDto>>,ReorderMaterialChunksCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<ResumeStudyPlanCommand, int>, ResumeStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<UpdateMaterialChunkCommand, MaterialChunkDto>, UpdateMaterialChunkCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<CreateMaterialChunkCommand, MaterialChunkDto>, CreateMaterialChunkCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<DeleteMaterialChunkCommand, int>, DeleteMaterialChunkCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<CompleteStudyPlanCommand, int>, CompleteStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<ReorderMaterialChunksCommand, IReadOnlyCollection<MaterialChunkDto>>, ReorderMaterialChunksCommandHandler>();
 
-builder.Services.AddScoped<ICommandHandler<CancelStudyPlanCommand, int>,    CancelStudyPlanCommandHandler>();
-builder.Services.AddScoped<ICommandHandler<PauseStudyPlanCommand, int>,PauseStudyPlanCommandHandler>();
-builder.Services.AddScoped<IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto?>,GetStudyPlanByIdQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetStudyPlansQuery, IReadOnlyCollection<StudyPlanDto>>,GetStudyPlansQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>>,GetMaterialsQueryHandler>(); builder.Services.AddScoped<IQueryHandler<GetDueStudySessionsQuery, IReadOnlyCollection<StudySessionDto>>, GetDueStudySessionsQueryHandler>();
+builder.Services.AddScoped<ICommandHandler<CancelStudyPlanCommand, int>, CancelStudyPlanCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<PauseStudyPlanCommand, int>, PauseStudyPlanCommandHandler>();
+builder.Services.AddScoped<IQueryHandler<GetStudyPlanByIdQuery, StudyPlanDto?>, GetStudyPlanByIdQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetStudyPlansQuery, IReadOnlyCollection<StudyPlanDto>>, GetStudyPlansQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>>, GetMaterialsQueryHandler>(); builder.Services.AddScoped<IQueryHandler<GetDueStudySessionsQuery, IReadOnlyCollection<StudySessionDto>>, GetDueStudySessionsQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStudyProgressQuery, StudyProgressDto?>, GetStudyProgressQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMobileDashboardQuery, MobileDashboardDto>, GetMobileDashboardQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetNextStudySessionQuery, NextStudySessionDto?>, GetNextStudySessionQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetMobileProgressSummaryQuery, MobileProgressSummaryDto>, GetMobileProgressSummaryQueryHandler>();
 builder.Services.AddScoped<IQueryHandler<GetStudySessionByIdQuery, StudySessionDetailDto>, GetStudySessionByIdQueryHandler>();
-builder.Services.AddScoped<IQueryHandler<GetMaterialByIdQuery, MaterialDto?>,GetMaterialByIdQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMaterialByIdQuery, MaterialDto?>, GetMaterialByIdQueryHandler>();
 builder.Services.AddScoped<IStudyScheduleEngine, StudyScheduleEngine>();
-builder.Services.AddScoped<IQueryHandler<GetMaterialChunksQuery, IReadOnlyCollection<MaterialChunkDto>>,GetMaterialChunksQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetMaterialChunksQuery, IReadOnlyCollection<MaterialChunkDto>>, GetMaterialChunksQueryHandler>();
 
 builder.Services.Decorate(typeof(ICommandHandler<,>), typeof(ValidatedCommandHandler<,>));
 builder.Services.Decorate(typeof(IQueryHandler<,>), typeof(ValidatedQueryHandler<,>));
@@ -110,6 +109,10 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<MentoraXDbContext>();
+    await dbContext.Database.MigrateAsync();
 }
 
 app.UseCors("FlutterWeb");
@@ -120,10 +123,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<MentoraXDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
+
 
 app.Run();
