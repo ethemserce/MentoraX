@@ -27,6 +27,10 @@ public sealed class LoginCommandHandler(
         }
 
         var token = jwtTokenGenerator.GenerateToken(user);
-        return new AuthResponseDto(user.Id, user.FullName, user.Email, token);
+
+        var accessTokenExpiresAtUtc = DateTime.UtcNow.AddHours(1);
+        var refreshToken = string.Empty;
+        var refreshTokenExpiresAtUtc = DateTime.UtcNow.AddDays(7);
+        return new AuthResponseDto(user.Id, user.FullName, user.Email, token,accessTokenExpiresAtUtc,refreshToken,refreshTokenExpiresAtUtc);
     }
 }
