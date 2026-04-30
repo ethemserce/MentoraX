@@ -46,8 +46,8 @@ public sealed class GetMaterialByIdQueryHandler(
             material.Material.Description,
             material.Material.Tags,
             material.ActivePlan is not null,
-            material.ActivePlan != null ? material.ActivePlan.Id : null,
-            material.ActivePlan != null ? material.ActivePlan.Title : null
+            material.ActivePlan?.Id,
+            material.ActivePlan?.Title
         );
     }
 }
