@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace MentoraX.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class AddMaterialChunksAndStudyPlanItems : Migration
+    public partial class FixLearningMaterialStudyPlansAndChunks : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

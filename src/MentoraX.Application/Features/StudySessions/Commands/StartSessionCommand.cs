@@ -46,8 +46,8 @@ public sealed class StartSessionCommandHandler(
         if (session.StudyPlan.Status != PlanStatus.Active)
         {
             throw new AppConflictException(
-                "Only sessions of active plans can be started.",
-                "plan_is_not_active");
+                "This plan is no longer active. Please refresh the page.",
+                "study_plan_not_active");
         }
 
         if (session.IsCompleted)
