@@ -170,9 +170,6 @@ namespace MentoraX.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("LearningMaterialId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("LearningMaterialId1")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
 
@@ -193,8 +190,6 @@ namespace MentoraX.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("LearningMaterialId");
-
-                    b.HasIndex("LearningMaterialId1");
 
                     b.HasIndex("UserId");
 
@@ -476,14 +471,10 @@ namespace MentoraX.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("MentoraX.Domain.Entities.StudyPlan", b =>
                 {
                     b.HasOne("MentoraX.Domain.Entities.LearningMaterial", "LearningMaterial")
-                        .WithMany()
+                        .WithMany("StudyPlans")
                         .HasForeignKey("LearningMaterialId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("MentoraX.Domain.Entities.LearningMaterial", null)
-                        .WithMany("StudyPlans")
-                        .HasForeignKey("LearningMaterialId1");
 
                     b.HasOne("MentoraX.Domain.Entities.User", "User")
                         .WithMany("StudyPlans")

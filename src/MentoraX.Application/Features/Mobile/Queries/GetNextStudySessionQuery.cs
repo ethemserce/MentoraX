@@ -1,6 +1,7 @@
 ﻿using MentoraX.Application.Abstractions.Persistence;
 using MentoraX.Application.Common;
 using MentoraX.Application.DTOs;
+using MentoraX.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentoraX.Application.Features.Mobile.Queries;
@@ -11,30 +12,33 @@ public sealed class GetNextStudySessionQueryHandler(IApplicationDbContext _dbCon
     : IQueryHandler<GetNextStudySessionQuery, NextStudySessionDto?>
 {
     public async Task<NextStudySessionDto?> Handle(
-        GetNextStudySessionQuery query,
-        CancellationToken cancellationToken)
+    GetNextStudySessionQuery query,
+    CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
 
-        return await _dbContext.StudySessions
+        var session = await _dbContext.StudySessions
             .AsNoTracking()
+            .Include(x => x.StudyPlan)
+            .Include(x => x.LearningMaterial)
             .Where(x =>
                 x.UserId == query.UserId &&
-                !x.IsCompleted)
+                !x.IsCompleted &&
+                x.StudyPlan.Status == PlanStatus.Active)
             .OrderBy(x => x.ScheduledAtUtc)
-            .Join(
-                _dbContext.LearningMaterials.AsNoTracking(),
-                session => session.LearningMaterialId,
-                material => material.Id,
-                (session, material) => new NextStudySessionDto(
-                    session.Id,
-                    session.StudyPlanId,
-                    material.Id,
-                    material.Title,
-                    session.ScheduledAtUtc,
-                    session.StartedAtUtc,
-                    material.EstimatedDurationMinutes,
-                    session.ScheduledAtUtc <= now))
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (session is null)
+            return null;
+
+        return new NextStudySessionDto(
+            session.Id,
+            session.StudyPlanId,
+            session.LearningMaterialId,
+            session.LearningMaterial.Title,
+            session.ScheduledAtUtc,
+            session.StartedAtUtc,
+            session.LearningMaterial.EstimatedDurationMinutes,
+            session.ScheduledAtUtc <= now);
     }
 }
