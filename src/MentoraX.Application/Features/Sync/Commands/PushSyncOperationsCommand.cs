@@ -23,6 +23,7 @@ public sealed class PushSyncOperationsCommandHandler(
 {
     private const string StatusApplied = "applied";
     private const string StatusAlreadyApplied = "already_applied";
+    private const string StatusConflict = "conflict";
     private const string StatusFailed = "failed";
 
     public async Task<SyncPushResponseDto> Handle(
@@ -86,7 +87,7 @@ public sealed class PushSyncOperationsCommandHandler(
                     return await RecordOperationAsync(
                         userId,
                         operation,
-                        StatusFailed,
+                        StatusConflict,
                         $"sync_operation_not_supported: {operation.OperationType} is not supported.",
                         cancellationToken);
             }
@@ -103,7 +104,7 @@ public sealed class PushSyncOperationsCommandHandler(
             return await RecordOperationAsync(
                 userId,
                 operation,
-                StatusFailed,
+                ResolveFailureStatus(ex),
                 $"{ex.Code}: {ex.Message}",
                 cancellationToken);
         }
@@ -329,6 +330,24 @@ public sealed class PushSyncOperationsCommandHandler(
             operation.OperationId,
             status,
             error);
+    }
+
+    private static string ResolveFailureStatus(AppException exception)
+    {
+        return exception is AppConflictException ||
+               exception is AppNotFoundException ||
+               IsTerminalSyncError(exception.Code)
+            ? StatusConflict
+            : StatusFailed;
+    }
+
+    private static bool IsTerminalSyncError(string code)
+    {
+        return code is
+            "sync_invalid_payload" or
+            "sync_session_id_required" or
+            "sync_payload_field_required" or
+            "sync_payload_field_invalid";
     }
 
     private static JsonDocument ParsePayload(string payload)
