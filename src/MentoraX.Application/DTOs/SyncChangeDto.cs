@@ -4,4 +4,5 @@ public sealed record SyncChangeDto(
     string EntityType,
     Guid EntityId,
     string ChangeType,
-    DateTime ChangedAtUtc);
+    DateTime ChangedAtUtc,
+    object Payload);
