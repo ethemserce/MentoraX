@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace MentoraX.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(MentoraXDbContext))]
-    [Migration("20260501095108_FixLearningMaterialStudyPlansAndChunks")]
+    [Migration("20260501164740_FixLearningMaterialStudyPlansAndChunks")]
     partial class FixLearningMaterialStudyPlansAndChunks
     {
         /// <inheritdoc />
