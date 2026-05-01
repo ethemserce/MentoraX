@@ -69,6 +69,36 @@ public sealed class CompleteStudySessionCommandHandler(
 
         var now = DateTime.UtcNow;
 
+        if (session.ScheduledAtUtc > now)
+        {
+            throw new AppConflictException(
+                "This session is scheduled for later.",
+                "study_session_not_due_yet");
+        }
+
+        var expectedDurationMinutes = session.StudyPlan.DailyTargetMinutes > 0
+            ? session.StudyPlan.DailyTargetMinutes
+            : 1;
+
+        var minimumRequiredMinutes = (int)Math.Ceiling(expectedDurationMinutes * 0.5);
+
+        if (minimumRequiredMinutes > 5)
+        {
+            minimumRequiredMinutes = 5;
+        }
+
+        if (minimumRequiredMinutes < 1)
+        {
+            minimumRequiredMinutes = 1;
+        }
+
+        if (command.ActualDurationMinutes < minimumRequiredMinutes)
+        {
+            throw new AppConflictException(
+                $"You studied for only {command.ActualDurationMinutes} minute(s). Please continue a little more before completing this session.",
+                "actual_duration_too_short");
+        }
+
         session.MarkCompleted(
             command.QualityScore,
             command.DifficultyScore,
