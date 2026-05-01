@@ -19,6 +19,7 @@ public sealed class MentoraXDbContext : DbContext, IApplicationDbContext
     public DbSet<MobileDevice> MobileDevices => Set<MobileDevice>();
     public DbSet<MaterialChunk> MaterialChunks => Set<MaterialChunk>();
     public DbSet<StudyPlanItem> StudyPlanItems => Set<StudyPlanItem>();
+    public DbSet<SyncOperation> SyncOperations => Set<SyncOperation>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MentoraXDbContext).Assembly);

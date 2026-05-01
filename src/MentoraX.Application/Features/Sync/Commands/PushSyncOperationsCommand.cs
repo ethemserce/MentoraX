@@ -1,0 +1,438 @@
+using System.Globalization;
+using System.Text.Json;
+using MentoraX.Application.Abstractions.Persistence;
+using MentoraX.Application.Abstractions.Scheduling;
+using MentoraX.Application.Abstractions.Services;
+using MentoraX.Application.Common;
+using MentoraX.Application.Common.Exceptions;
+using MentoraX.Application.DTOs;
+using MentoraX.Domain.Entities;
+using MentoraX.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace MentoraX.Application.Features.Sync.Commands;
+
+public sealed record PushSyncOperationsCommand(IReadOnlyCollection<SyncPushOperationDto> Operations)
+    : ICommand<SyncPushResponseDto>;
+
+public sealed class PushSyncOperationsCommandHandler(
+    IApplicationDbContext dbContext,
+    IStudyScheduleEngine scheduleEngine,
+    ICurrentUserService currentUserService)
+    : ICommandHandler<PushSyncOperationsCommand, SyncPushResponseDto>
+{
+    private const string StatusApplied = "applied";
+    private const string StatusAlreadyApplied = "already_applied";
+    private const string StatusFailed = "failed";
+
+    public async Task<SyncPushResponseDto> Handle(
+        PushSyncOperationsCommand command,
+        CancellationToken cancellationToken)
+    {
+        var userId = currentUserService.GetRequiredUserId();
+        var results = new List<SyncPushOperationResultDto>();
+
+        foreach (var operation in command.Operations)
+        {
+            results.Add(await HandleOperationAsync(userId, operation, cancellationToken));
+        }
+
+        return new SyncPushResponseDto(DateTime.UtcNow, results);
+    }
+
+    private async Task<SyncPushOperationResultDto> HandleOperationAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(operation.OperationId))
+        {
+            return new SyncPushOperationResultDto(
+                operation.OperationId,
+                StatusFailed,
+                "sync_operation_id_required: OperationId is required.");
+        }
+
+        var existingOperation = await dbContext.SyncOperations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.UserId == userId &&
+                     x.OperationId == operation.OperationId,
+                cancellationToken);
+
+        if (existingOperation is not null)
+        {
+            var status = existingOperation.Status == StatusApplied
+                ? StatusAlreadyApplied
+                : existingOperation.Status;
+
+            return new SyncPushOperationResultDto(
+                operation.OperationId,
+                status,
+                existingOperation.Error);
+        }
+
+        try
+        {
+            switch (operation.OperationType)
+            {
+                case "StudySessionStarted":
+                    await ApplyStudySessionStartedAsync(userId, operation, cancellationToken);
+                    break;
+                case "StudySessionCompleted":
+                    await ApplyStudySessionCompletedAsync(userId, operation, cancellationToken);
+                    break;
+                default:
+                    return await RecordOperationAsync(
+                        userId,
+                        operation,
+                        StatusFailed,
+                        $"sync_operation_not_supported: {operation.OperationType} is not supported.",
+                        cancellationToken);
+            }
+
+            return await RecordOperationAsync(
+                userId,
+                operation,
+                StatusApplied,
+                null,
+                cancellationToken);
+        }
+        catch (AppException ex)
+        {
+            return await RecordOperationAsync(
+                userId,
+                operation,
+                StatusFailed,
+                $"{ex.Code}: {ex.Message}",
+                cancellationToken);
+        }
+    }
+
+    private async Task ApplyStudySessionStartedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var sessionId = ReadSessionId(operation, root);
+        var startedAtUtc = ReadOptionalDateTime(root, "startedAtUtc") ??
+                           operation.OccurredAtUtc ??
+                           DateTime.UtcNow;
+
+        var session = await dbContext.StudySessions
+            .Include(x => x.StudyPlan)
+            .Include(x => x.StudyPlanItem)
+            .FirstOrDefaultAsync(
+                x => x.Id == sessionId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (session is null)
+        {
+            throw new AppNotFoundException(
+                "Study session not found.",
+                "study_session_not_found");
+        }
+
+        if (session.IsCompleted)
+            return;
+
+        if (session.StudyPlan is null)
+        {
+            throw new AppConflictException(
+                "Session does not belong to a valid study plan.",
+                "session_plan_not_found");
+        }
+
+        if (session.StudyPlan.Status != PlanStatus.Active)
+        {
+            throw new AppConflictException(
+                "This plan is no longer active. Please refresh the page.",
+                "study_plan_not_active");
+        }
+
+        if (!session.StartedAtUtc.HasValue)
+        {
+            session.MarkStarted(startedAtUtc);
+        }
+
+        if (session.StudyPlanItem is not null)
+        {
+            session.StudyPlanItem.MarkInProgress();
+        }
+    }
+
+    private async Task ApplyStudySessionCompletedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var sessionId = ReadSessionId(operation, root);
+        var qualityScore = ReadRequiredInt(root, "qualityScore");
+        var difficultyScore = ReadRequiredInt(root, "difficultyScore");
+        var actualDurationMinutes = ReadRequiredInt(root, "actualDurationMinutes");
+        var reviewNotes = ReadOptionalString(root, "reviewNotes");
+        var completedAtUtc = ReadOptionalDateTime(root, "completedAtUtc") ??
+                             operation.OccurredAtUtc ??
+                             DateTime.UtcNow;
+
+        var session = await dbContext.StudySessions
+            .Include(x => x.StudyProgress)
+            .Include(x => x.StudyPlan)
+            .Include(x => x.StudyPlanItem)
+            .FirstOrDefaultAsync(
+                x => x.Id == sessionId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (session is null)
+        {
+            throw new AppNotFoundException(
+                "Study session not found.",
+                "study_session_not_found");
+        }
+
+        if (session.IsCompleted)
+            return;
+
+        if (session.StudyPlan is null)
+        {
+            throw new AppConflictException(
+                "Session does not belong to a valid study plan.",
+                "session_plan_not_found");
+        }
+
+        if (session.StudyPlan.Status != PlanStatus.Active)
+        {
+            throw new AppConflictException(
+                "This plan is no longer active. Please refresh the page.",
+                "study_plan_not_active");
+        }
+
+        if (!session.StartedAtUtc.HasValue)
+        {
+            var inferredStartUtc = completedAtUtc.AddMinutes(-Math.Max(actualDurationMinutes, 0));
+            session.MarkStarted(inferredStartUtc);
+        }
+
+        session.MarkCompleted(
+            qualityScore,
+            difficultyScore,
+            actualDurationMinutes,
+            reviewNotes,
+            completedAtUtc);
+
+        if (session.StudyPlanItem is not null)
+        {
+            session.StudyPlanItem.MarkCompleted();
+        }
+
+        var progress = session.StudyProgress;
+
+        var progressResult = scheduleEngine.CalculateNext(
+            progress.RepetitionCount,
+            progress.IntervalDays,
+            progress.EasinessFactor,
+            qualityScore,
+            difficultyScore,
+            completedAtUtc);
+
+        progress.RepetitionCount = progressResult.RepetitionCount;
+        progress.IntervalDays = progressResult.IntervalDays;
+        progress.EasinessFactor = progressResult.EasinessFactor;
+        progress.LastReviewedAtUtc = completedAtUtc;
+        progress.NextReviewAtUtc = progressResult.NextReviewAtUtc;
+        progress.UpdatedAtUtc = completedAtUtc;
+
+        if (progressResult.IsFailure)
+        {
+            progress.FailureCount += 1;
+            progress.SuccessStreak = 0;
+        }
+        else
+        {
+            progress.SuccessStreak += progressResult.SuccessStreakDelta;
+        }
+
+        var maxItemOrder = await dbContext.StudyPlanItems
+            .Where(x => x.StudyPlanId == session.StudyPlanId)
+            .Select(x => (int?)x.OrderNo)
+            .MaxAsync(cancellationToken) ?? 0;
+
+        var maxSessionOrder = await dbContext.StudySessions
+            .Where(x => x.StudyPlanId == session.StudyPlanId)
+            .Select(x => (int?)x.Order)
+            .MaxAsync(cancellationToken) ?? 0;
+
+        var nextPlanItem = new StudyPlanItem(
+            studyPlanId: session.StudyPlanId,
+            materialChunkId: session.StudyPlanItem?.MaterialChunkId,
+            title: session.StudyPlanItem?.Title ?? session.StudyPlan.Title,
+            description: session.StudyPlanItem?.Description,
+            itemType: StudyItemType.Repetition,
+            orderNo: maxItemOrder + 1,
+            plannedDateUtc: progress.NextReviewAtUtc,
+            plannedStartTime: null,
+            plannedEndTime: null,
+            durationMinutes: session.StudyPlan.DailyTargetMinutes,
+            priority: 1,
+            isMandatory: true,
+            sourceReason: "Generated from sync repetition schedule");
+
+        var nextSession = new StudySession
+        {
+            Id = Guid.NewGuid(),
+            StudyPlanId = session.StudyPlanId,
+            StudyPlanItemId = nextPlanItem.Id,
+            LearningMaterialId = session.LearningMaterialId,
+            UserId = session.UserId,
+            StudyProgressId = progress.Id,
+            ScheduledAtUtc = progress.NextReviewAtUtc,
+            IsCompleted = false,
+            Order = maxSessionOrder + 1,
+            CreatedAtUtc = completedAtUtc,
+            UpdatedAtUtc = completedAtUtc
+        };
+
+        dbContext.StudyPlanItems.Add(nextPlanItem);
+        dbContext.StudySessions.Add(nextSession);
+    }
+
+    private async Task<SyncPushOperationResultDto> RecordOperationAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        string status,
+        string? error,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+
+        dbContext.SyncOperations.Add(new SyncOperation(
+            userId,
+            operation.OperationId,
+            operation.OperationType,
+            operation.EntityType,
+            operation.EntityId,
+            operation.Payload,
+            operation.OccurredAtUtc ?? now,
+            now,
+            status,
+            error));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new SyncPushOperationResultDto(
+            operation.OperationId,
+            status,
+            error);
+    }
+
+    private static JsonDocument ParsePayload(string payload)
+    {
+        try
+        {
+            return JsonDocument.Parse(string.IsNullOrWhiteSpace(payload) ? "{}" : payload);
+        }
+        catch (JsonException)
+        {
+            throw new AppConflictException(
+                "Sync payload is not valid JSON.",
+                "sync_invalid_payload");
+        }
+    }
+
+    private static Guid ReadSessionId(SyncPushOperationDto operation, JsonElement root)
+    {
+        if (operation.EntityId != Guid.Empty)
+            return operation.EntityId;
+
+        if (TryReadGuid(root, "sessionId", out var sessionId))
+            return sessionId;
+
+        throw new AppConflictException(
+            "Study session sync operation requires a sessionId.",
+            "sync_session_id_required");
+    }
+
+    private static int ReadRequiredInt(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+        {
+            throw new AppConflictException(
+                $"Sync payload requires {propertyName}.",
+                "sync_payload_field_required");
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+            return number;
+
+        if (value.ValueKind == JsonValueKind.String &&
+            int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out number))
+        {
+            return number;
+        }
+
+        throw new AppConflictException(
+            $"Sync payload field {propertyName} must be an integer.",
+            "sync_payload_field_invalid");
+    }
+
+    private static string? ReadOptionalString(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) ||
+            value.ValueKind == JsonValueKind.Null ||
+            value.ValueKind == JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        return value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : value.GetRawText();
+    }
+
+    private static DateTime? ReadOptionalDateTime(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) ||
+            value.ValueKind == JsonValueKind.Null ||
+            value.ValueKind == JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        var rawValue = value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : value.GetRawText();
+
+        if (DateTime.TryParse(
+                rawValue,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var dateTime))
+        {
+            return dateTime;
+        }
+
+        throw new AppConflictException(
+            $"Sync payload field {propertyName} must be a UTC date-time.",
+            "sync_payload_field_invalid");
+    }
+
+    private static bool TryReadGuid(JsonElement root, string propertyName, out Guid value)
+    {
+        value = Guid.Empty;
+
+        if (!root.TryGetProperty(propertyName, out var element))
+            return false;
+
+        var rawValue = element.ValueKind == JsonValueKind.String
+            ? element.GetString()
+            : element.GetRawText();
+
+        return Guid.TryParse(rawValue, out value);
+    }
+}

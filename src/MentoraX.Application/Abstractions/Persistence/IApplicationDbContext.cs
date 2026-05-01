@@ -13,5 +13,6 @@ public interface IApplicationDbContext
     DbSet<MobileDevice> MobileDevices { get; }
     DbSet<MaterialChunk> MaterialChunks {  get; }
     DbSet<StudyPlanItem> StudyPlanItems { get; }
+    DbSet<SyncOperation> SyncOperations { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

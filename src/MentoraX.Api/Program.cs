@@ -17,6 +17,8 @@ using MentoraX.Application.Features.StudyPlans.Queries;
 using MentoraX.Application.Features.StudyProgress.Queries;
 using MentoraX.Application.Features.StudySessions.Commands;
 using MentoraX.Application.Features.StudySessions.Queries;
+using MentoraX.Application.Features.Sync.Commands;
+using MentoraX.Application.Features.Sync.Queries;
 using MentoraX.Application.Services;
 using MentoraX.Infrastructure.DependencyInjection;
 using MentoraX.Infrastructure.Persistence;
@@ -84,6 +86,7 @@ builder.Services.AddScoped<ICommandHandler<CreateMaterialChunkCommand, MaterialC
 builder.Services.AddScoped<ICommandHandler<DeleteMaterialChunkCommand, int>,DeleteMaterialChunkCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<CompleteStudyPlanCommand, int>,CompleteStudyPlanCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<ReorderMaterialChunksCommand, IReadOnlyCollection<MaterialChunkDto>>,ReorderMaterialChunksCommandHandler>();
+builder.Services.AddScoped<ICommandHandler<PushSyncOperationsCommand, SyncPushResponseDto>, PushSyncOperationsCommandHandler>();
 
 builder.Services.AddScoped<ICommandHandler<CancelStudyPlanCommand, int>,    CancelStudyPlanCommandHandler>();
 builder.Services.AddScoped<ICommandHandler<PauseStudyPlanCommand, int>,PauseStudyPlanCommandHandler>();
@@ -98,6 +101,7 @@ builder.Services.AddScoped<IQueryHandler<GetStudySessionByIdQuery, StudySessionD
 builder.Services.AddScoped<IQueryHandler<GetMaterialByIdQuery, MaterialDto?>,GetMaterialByIdQueryHandler>();
 builder.Services.AddScoped<IStudyScheduleEngine, StudyScheduleEngine>();
 builder.Services.AddScoped<IQueryHandler<GetMaterialChunksQuery, IReadOnlyCollection<MaterialChunkDto>>,GetMaterialChunksQueryHandler>();
+builder.Services.AddScoped<IQueryHandler<GetSyncChangesQuery, SyncChangesDto>, GetSyncChangesQueryHandler>();
 
 builder.Services.Decorate(typeof(ICommandHandler<,>), typeof(ValidatedCommandHandler<,>));
 builder.Services.Decorate(typeof(IQueryHandler<,>), typeof(ValidatedQueryHandler<,>));
