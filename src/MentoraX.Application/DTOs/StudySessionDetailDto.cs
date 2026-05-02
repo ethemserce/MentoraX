@@ -13,6 +13,7 @@ public sealed record StudySessionDetailDto(
     string? ItemType,
     int SequenceNumber,
     DateTime ScheduledAtUtc,
+    DateTime? StartedAtUtc,
     int PlannedDurationMinutes,
     string Status,
     DateTime? CompletedAtUtc,

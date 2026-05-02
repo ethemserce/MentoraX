@@ -24,7 +24,7 @@ public sealed class GetStudySessionByIdQueryHandler(
             .AsNoTracking()
             .Include(x => x.StudyPlan)
             .Include(x => x.LearningMaterial)
-            .Include(x => x.StudyPlanItem)
+            .Include(x => x.StudyPlanItem!)
                 .ThenInclude(x => x.MaterialChunk)
             .FirstOrDefaultAsync(
                 x => x.Id == query.SessionId && x.UserId == userId,
@@ -49,11 +49,20 @@ public sealed class GetStudySessionByIdQueryHandler(
             item?.ItemType.ToString(),
             session.Order,
             session.ScheduledAtUtc,
+            session.StartedAtUtc,
             session.StudyPlan.DailyTargetMinutes,
-            session.IsCompleted ? "Completed" : "Planned",
+            ToSessionStatus(session),
             session.CompletedAtUtc,
             session.ActualDurationMinutes,
             session.ReviewNotes
         );
+    }
+
+    private static string ToSessionStatus(Domain.Entities.StudySession session)
+    {
+        if (session.IsCompleted)
+            return "Completed";
+
+        return session.StartedAtUtc.HasValue ? "InProgress" : "Planned";
     }
 }
