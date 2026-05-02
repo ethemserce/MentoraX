@@ -2,6 +2,7 @@
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
+using MentoraX.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace MentoraX.Application.Features.MaterialChunks.Commands;
@@ -49,6 +50,16 @@ public sealed class DeleteMaterialChunkCommandHandler(
                 "chunk_is_used_in_study_plan");
         }
 
+        var deletedAtUtc = DateTime.UtcNow;
+
+        dbContext.SyncTombstones.Add(new SyncTombstone(
+            userId,
+            "MaterialChunk",
+            chunk.Id,
+            deletedAtUtc,
+            "{}"));
+
+        chunk.LearningMaterial.Touch();
         dbContext.MaterialChunks.Remove(chunk);
         await dbContext.SaveChangesAsync(cancellationToken);
 

@@ -14,5 +14,6 @@ public interface IApplicationDbContext
     DbSet<MaterialChunk> MaterialChunks {  get; }
     DbSet<StudyPlanItem> StudyPlanItems { get; }
     DbSet<SyncOperation> SyncOperations { get; }
+    DbSet<SyncTombstone> SyncTombstones { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

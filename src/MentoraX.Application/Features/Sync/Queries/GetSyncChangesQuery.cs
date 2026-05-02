@@ -112,6 +112,13 @@ public sealed class GetSyncChangesQueryHandler(IApplicationDbContext dbContext)
                 .ThenInclude(x => x.MaterialChunk)
             .ToListAsync(cancellationToken);
 
+        var tombstones = await dbContext.SyncTombstones
+            .AsNoTracking()
+            .Where(x =>
+                x.UserId == query.UserId &&
+                x.DeletedAtUtc > sinceUtc)
+            .ToListAsync(cancellationToken);
+
         var planChanges = plans
             .Select(plan =>
             {
@@ -159,10 +166,24 @@ public sealed class GetSyncChangesQueryHandler(IApplicationDbContext dbContext)
                 ToStudySessionDetailDto(session)))
             .ToList();
 
+        var deleteChanges = tombstones
+            .Select(tombstone => new SyncChangeDto(
+                tombstone.EntityType,
+                tombstone.EntityId,
+                "Delete",
+                tombstone.DeletedAtUtc,
+                new
+                {
+                    id = tombstone.EntityId,
+                    deletedAtUtc = tombstone.DeletedAtUtc
+                }))
+            .ToList();
+
         var changes = materialChanges
             .Concat(chunkChanges)
             .Concat(sessionChanges)
             .Concat(planChanges)
+            .Concat(deleteChanges)
             .OrderBy(x => x.ChangedAtUtc)
             .ToList();
 

@@ -20,6 +20,7 @@ public sealed class MentoraXDbContext : DbContext, IApplicationDbContext
     public DbSet<MaterialChunk> MaterialChunks => Set<MaterialChunk>();
     public DbSet<StudyPlanItem> StudyPlanItems => Set<StudyPlanItem>();
     public DbSet<SyncOperation> SyncOperations => Set<SyncOperation>();
+    public DbSet<SyncTombstone> SyncTombstones => Set<SyncTombstone>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(MentoraXDbContext).Assembly);
