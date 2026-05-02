@@ -83,6 +83,18 @@ public sealed class PushSyncOperationsCommandHandler(
                 case "StudySessionCompleted":
                     await ApplyStudySessionCompletedAsync(userId, operation, cancellationToken);
                     break;
+                case "StudyPlanPaused":
+                    await ApplyStudyPlanPausedAsync(userId, operation, cancellationToken);
+                    break;
+                case "StudyPlanResumed":
+                    await ApplyStudyPlanResumedAsync(userId, operation, cancellationToken);
+                    break;
+                case "StudyPlanCancelled":
+                    await ApplyStudyPlanCancelledAsync(userId, operation, cancellationToken);
+                    break;
+                case "StudyPlanCompleted":
+                    await ApplyStudyPlanCompletedAsync(userId, operation, cancellationToken);
+                    break;
                 default:
                     return await RecordOperationAsync(
                         userId,
@@ -303,6 +315,179 @@ public sealed class PushSyncOperationsCommandHandler(
         dbContext.StudySessions.Add(nextSession);
     }
 
+    private async Task ApplyStudyPlanPausedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var planId = ReadPlanId(operation, payload.RootElement);
+        var occurredAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        var plan = await dbContext.StudyPlans
+            .FirstOrDefaultAsync(
+                x => x.Id == planId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (plan is null)
+        {
+            throw new AppNotFoundException(
+                "Study plan was not found.",
+                "study_plan_not_found");
+        }
+
+        plan.Status = PlanStatus.Paused;
+        plan.UpdatedAtUtc = occurredAtUtc;
+    }
+
+    private async Task ApplyStudyPlanResumedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var planId = ReadPlanId(operation, payload.RootElement);
+        var occurredAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        var plan = await dbContext.StudyPlans
+            .FirstOrDefaultAsync(
+                x => x.Id == planId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (plan is null)
+        {
+            throw new AppNotFoundException(
+                "Study plan was not found.",
+                "study_plan_not_found");
+        }
+
+        if (plan.Status == PlanStatus.Cancelled)
+        {
+            throw new AppConflictException(
+                "Cancelled plan cannot be resumed.",
+                "cancelled_plan_cannot_be_resumed");
+        }
+
+        if (plan.Status == PlanStatus.Completed)
+        {
+            throw new AppConflictException(
+                "Completed plan cannot be resumed.",
+                "completed_plan_cannot_be_resumed");
+        }
+
+        plan.Status = PlanStatus.Active;
+        plan.UpdatedAtUtc = occurredAtUtc;
+    }
+
+    private async Task ApplyStudyPlanCancelledAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var planId = ReadPlanId(operation, payload.RootElement);
+        var occurredAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        var plan = await dbContext.StudyPlans
+            .Include(x => x.Items)
+                .ThenInclude(x => x.StudySessions)
+            .FirstOrDefaultAsync(
+                x => x.Id == planId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (plan is null)
+        {
+            throw new AppNotFoundException(
+                "Study plan was not found.",
+                "study_plan_not_found");
+        }
+
+        if (plan.Status == PlanStatus.Completed)
+        {
+            throw new AppConflictException(
+                "Completed plan cannot be cancelled.",
+                "completed_plan_cannot_be_cancelled");
+        }
+
+        plan.Status = PlanStatus.Cancelled;
+        plan.UpdatedAtUtc = occurredAtUtc;
+
+        foreach (var item in plan.Items)
+        {
+            if (item.Status != StudyPlanItemStatus.Completed)
+            {
+                item.Cancel();
+            }
+
+            foreach (var session in item.StudySessions)
+            {
+                if (!session.IsCompleted)
+                {
+                    session.UpdatedAtUtc = occurredAtUtc;
+                }
+            }
+        }
+    }
+
+    private async Task ApplyStudyPlanCompletedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var planId = ReadPlanId(operation, payload.RootElement);
+        var occurredAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        var plan = await dbContext.StudyPlans
+            .Include(x => x.Items)
+                .ThenInclude(x => x.StudySessions)
+            .FirstOrDefaultAsync(
+                x => x.Id == planId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (plan is null)
+        {
+            throw new AppNotFoundException(
+                "Study plan was not found.",
+                "study_plan_not_found");
+        }
+
+        if (plan.Status == PlanStatus.Cancelled)
+        {
+            throw new AppConflictException(
+                "Cancelled plan cannot be completed.",
+                "cancelled_plan_cannot_be_completed");
+        }
+
+        if (plan.Status == PlanStatus.Completed)
+        {
+            return;
+        }
+
+        plan.Status = PlanStatus.Completed;
+        plan.UpdatedAtUtc = occurredAtUtc;
+
+        foreach (var item in plan.Items)
+        {
+            if (item.Status != StudyPlanItemStatus.Completed)
+            {
+                item.Cancel();
+            }
+
+            foreach (var session in item.StudySessions)
+            {
+                if (!session.IsCompleted)
+                {
+                    session.UpdatedAtUtc = occurredAtUtc;
+                }
+            }
+        }
+    }
+
     private async Task<SyncPushOperationResultDto> RecordOperationAsync(
         Guid userId,
         SyncPushOperationDto operation,
@@ -346,6 +531,7 @@ public sealed class PushSyncOperationsCommandHandler(
         return code is
             "sync_invalid_payload" or
             "sync_session_id_required" or
+            "sync_plan_id_required" or
             "sync_payload_field_required" or
             "sync_payload_field_invalid";
     }
@@ -375,6 +561,22 @@ public sealed class PushSyncOperationsCommandHandler(
         throw new AppConflictException(
             "Study session sync operation requires a sessionId.",
             "sync_session_id_required");
+    }
+
+    private static Guid ReadPlanId(SyncPushOperationDto operation, JsonElement root)
+    {
+        if (operation.EntityId != Guid.Empty)
+            return operation.EntityId;
+
+        if (TryReadGuid(root, "planId", out var planId))
+            return planId;
+
+        if (TryReadGuid(root, "studyPlanId", out var studyPlanId))
+            return studyPlanId;
+
+        throw new AppConflictException(
+            "Study plan sync operation requires a planId.",
+            "sync_plan_id_required");
     }
 
     private static int ReadRequiredInt(JsonElement root, string propertyName)
