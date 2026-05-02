@@ -96,6 +96,21 @@ public sealed class PushSyncOperationsCommandHandler(
                 case SyncContract.OperationTypes.StudyPlanCompleted:
                     await ApplyStudyPlanCompletedAsync(userId, operation, cancellationToken);
                     break;
+                case SyncContract.OperationTypes.MaterialCreated:
+                    await ApplyMaterialCreatedAsync(userId, operation, cancellationToken);
+                    break;
+                case SyncContract.OperationTypes.MaterialChunkCreated:
+                    await ApplyMaterialChunkCreatedAsync(userId, operation, cancellationToken);
+                    break;
+                case SyncContract.OperationTypes.MaterialChunkUpdated:
+                    await ApplyMaterialChunkUpdatedAsync(userId, operation, cancellationToken);
+                    break;
+                case SyncContract.OperationTypes.MaterialChunkDeleted:
+                    await ApplyMaterialChunkDeletedAsync(userId, operation, cancellationToken);
+                    break;
+                case SyncContract.OperationTypes.MaterialChunksReordered:
+                    await ApplyMaterialChunksReorderedAsync(userId, operation, cancellationToken);
+                    break;
                 default:
                     return await RecordOperationAsync(
                         userId,
@@ -489,6 +504,383 @@ public sealed class PushSyncOperationsCommandHandler(
         }
     }
 
+    private async Task ApplyMaterialCreatedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var materialId = ReadMaterialId(operation, root);
+        var occurredAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        var existingMaterial = await dbContext.LearningMaterials
+            .FirstOrDefaultAsync(x => x.Id == materialId, cancellationToken);
+
+        if (existingMaterial is not null)
+        {
+            if (existingMaterial.UserId != userId)
+            {
+                throw new AppConflictException(
+                    "Material id is already used by another user.",
+                    SyncContract.ErrorCodes.MaterialIdConflict);
+            }
+
+            return;
+        }
+
+        var title = ReadRequiredString(root, "title");
+        var materialTypeRaw = ReadRequiredString(root, "materialType");
+        var content = ReadRequiredString(root, "content");
+        var estimatedDurationMinutes = ReadRequiredInt(root, "estimatedDurationMinutes");
+        var description = ReadOptionalString(root, "description");
+        var tags = ReadOptionalString(root, "tags");
+
+        if (!Enum.TryParse<MaterialType>(materialTypeRaw, true, out var materialType))
+        {
+            throw new AppConflictException(
+                "Sync payload field materialType must be a valid material type.",
+                SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
+        }
+
+        if (estimatedDurationMinutes <= 0)
+        {
+            throw new AppConflictException(
+                "Estimated duration minutes must be greater than zero.",
+                SyncContract.ErrorCodes.InvalidEstimatedStudyMinutes);
+        }
+
+        var material = new LearningMaterial(
+            userId,
+            title,
+            materialType,
+            content,
+            estimatedDurationMinutes,
+            description,
+            tags)
+        {
+            Id = materialId,
+            CreatedAtUtc = occurredAtUtc,
+            UpdatedAtUtc = occurredAtUtc
+        };
+
+        dbContext.LearningMaterials.Add(material);
+
+        var defaultChunkId =
+            TryReadGuid(root, "defaultChunkId", out var parsedDefaultChunkId)
+                ? parsedDefaultChunkId
+                : TryReadGuid(root, "chunkId", out var parsedChunkId)
+                ? parsedChunkId
+                : Guid.NewGuid();
+
+        var defaultChunk = new MaterialChunk(
+            learningMaterialId: materialId,
+            orderNo: 1,
+            content: content,
+            title: title,
+            summary: description,
+            keywords: tags,
+            difficultyLevel: 1,
+            estimatedStudyMinutes: estimatedDurationMinutes,
+            isGeneratedByAI: false,
+            id: defaultChunkId)
+        {
+            CreatedAtUtc = occurredAtUtc,
+            UpdatedAtUtc = occurredAtUtc
+        };
+
+        dbContext.MaterialChunks.Add(defaultChunk);
+    }
+
+    private async Task ApplyMaterialChunkCreatedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var materialId = ReadMaterialIdFromPayload(root);
+        var chunkId = ReadChunkId(operation, root);
+        var occurredAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        await EnsureMaterialExistsAsync(userId, materialId, cancellationToken);
+
+        var existingChunk = await dbContext.MaterialChunks
+            .Include(x => x.LearningMaterial)
+            .FirstOrDefaultAsync(x => x.Id == chunkId, cancellationToken);
+
+        if (existingChunk is not null)
+        {
+            if (existingChunk.LearningMaterialId == materialId &&
+                existingChunk.LearningMaterial.UserId == userId)
+            {
+                return;
+            }
+
+            throw new AppConflictException(
+                "Material chunk id is already used.",
+                SyncContract.ErrorCodes.MaterialChunkIdConflict);
+        }
+
+        var title = ReadOptionalString(root, "title");
+        var content = ReadRequiredString(root, "content");
+        var summary = ReadOptionalString(root, "summary");
+        var keywords = ReadOptionalString(root, "keywords");
+        var difficultyLevel = ReadRequiredInt(root, "difficultyLevel");
+        var estimatedStudyMinutes = ReadRequiredInt(root, "estimatedStudyMinutes");
+
+        ValidateChunkPayload(content, difficultyLevel, estimatedStudyMinutes);
+
+        var nextOrderNo = ReadOptionalInt(root, "orderNo") ??
+            ((await dbContext.MaterialChunks
+                .Where(x => x.LearningMaterialId == materialId)
+                .Select(x => (int?)x.OrderNo)
+                .MaxAsync(cancellationToken)) ?? 0) + 1;
+
+        var chunk = new MaterialChunk(
+            learningMaterialId: materialId,
+            orderNo: nextOrderNo,
+            content: content,
+            title: title,
+            summary: summary,
+            keywords: keywords,
+            difficultyLevel: difficultyLevel,
+            estimatedStudyMinutes: estimatedStudyMinutes,
+            isGeneratedByAI: false,
+            id: chunkId)
+        {
+            CreatedAtUtc = occurredAtUtc,
+            UpdatedAtUtc = occurredAtUtc
+        };
+
+        dbContext.MaterialChunks.Add(chunk);
+    }
+
+    private async Task ApplyMaterialChunkUpdatedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var materialId = ReadMaterialIdFromPayload(root);
+        var chunkId = ReadChunkId(operation, root);
+
+        var chunk = await dbContext.MaterialChunks
+            .Include(x => x.LearningMaterial)
+            .FirstOrDefaultAsync(
+                x => x.Id == chunkId &&
+                     x.LearningMaterialId == materialId &&
+                     x.LearningMaterial.UserId == userId,
+                cancellationToken);
+
+        if (chunk is null)
+        {
+            throw new AppNotFoundException(
+                "Material chunk was not found.",
+                SyncContract.ErrorCodes.MaterialChunkNotFound);
+        }
+
+        var title = ReadOptionalString(root, "title");
+        var content = ReadRequiredString(root, "content");
+        var summary = ReadOptionalString(root, "summary");
+        var keywords = ReadOptionalString(root, "keywords");
+        var difficultyLevel = ReadRequiredInt(root, "difficultyLevel");
+        var estimatedStudyMinutes = ReadRequiredInt(root, "estimatedStudyMinutes");
+
+        ValidateChunkPayload(content, difficultyLevel, estimatedStudyMinutes);
+
+        chunk.Update(
+            content: content,
+            title: title,
+            summary: summary,
+            keywords: keywords,
+            difficultyLevel: difficultyLevel,
+            estimatedStudyMinutes: estimatedStudyMinutes);
+
+        if (operation.OccurredAtUtc.HasValue)
+        {
+            chunk.UpdatedAtUtc = operation.OccurredAtUtc.Value;
+        }
+    }
+
+    private async Task ApplyMaterialChunkDeletedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var materialId = ReadMaterialIdFromPayload(root);
+        var chunkId = ReadChunkId(operation, root);
+        var deletedAtUtc = operation.OccurredAtUtc ?? DateTime.UtcNow;
+
+        var chunk = await dbContext.MaterialChunks
+            .Include(x => x.LearningMaterial)
+            .FirstOrDefaultAsync(
+                x => x.Id == chunkId &&
+                     x.LearningMaterialId == materialId &&
+                     x.LearningMaterial.UserId == userId,
+                cancellationToken);
+
+        if (chunk is null)
+        {
+            throw new AppNotFoundException(
+                "Material chunk was not found.",
+                SyncContract.ErrorCodes.MaterialChunkNotFound);
+        }
+
+        var isUsedInPlan = await dbContext.StudyPlanItems
+            .AnyAsync(x => x.MaterialChunkId == chunk.Id, cancellationToken);
+
+        if (isUsedInPlan)
+        {
+            throw new AppConflictException(
+                "This chunk is used in a study plan and cannot be deleted.",
+                SyncContract.ErrorCodes.ChunkIsUsedInStudyPlan);
+        }
+
+        dbContext.SyncTombstones.Add(new SyncTombstone(
+            userId,
+            SyncContract.EntityTypes.MaterialChunk,
+            chunk.Id,
+            deletedAtUtc,
+            "{}"));
+
+        chunk.LearningMaterial.Touch();
+        chunk.LearningMaterial.UpdatedAtUtc = deletedAtUtc;
+        dbContext.MaterialChunks.Remove(chunk);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await ReorderRemainingChunksAsync(materialId, cancellationToken);
+    }
+
+    private async Task ApplyMaterialChunksReorderedAsync(
+        Guid userId,
+        SyncPushOperationDto operation,
+        CancellationToken cancellationToken)
+    {
+        using var payload = ParsePayload(operation.Payload);
+        var root = payload.RootElement;
+        var materialId = ReadMaterialId(operation, root);
+        var chunkIds = ReadRequiredGuidList(root, "chunkIds");
+
+        await EnsureMaterialExistsAsync(userId, materialId, cancellationToken);
+
+        if (chunkIds.Count == 0)
+        {
+            throw new AppConflictException(
+                "Chunk order list cannot be empty.",
+                SyncContract.ErrorCodes.ChunkOrderRequired);
+        }
+
+        var requestedIds = chunkIds.Distinct().ToList();
+        var chunks = await dbContext.MaterialChunks
+            .Where(x => x.LearningMaterialId == materialId)
+            .ToListAsync(cancellationToken);
+
+        if (chunks.Count != requestedIds.Count)
+        {
+            throw new AppConflictException(
+                "Chunk order list must contain all chunks for this material.",
+                SyncContract.ErrorCodes.InvalidChunkOrderCount);
+        }
+
+        var existingIds = chunks.Select(x => x.Id).ToHashSet();
+
+        if (requestedIds.Any(id => !existingIds.Contains(id)))
+        {
+            throw new AppConflictException(
+                "Chunk order list contains invalid chunk ids.",
+                SyncContract.ErrorCodes.InvalidChunkOrderIds);
+        }
+
+        await ApplyChunkOrderAsync(chunks, requestedIds, cancellationToken);
+    }
+
+    private async Task EnsureMaterialExistsAsync(
+        Guid userId,
+        Guid materialId,
+        CancellationToken cancellationToken)
+    {
+        var materialExists = await dbContext.LearningMaterials
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.Id == materialId &&
+                     x.UserId == userId,
+                cancellationToken);
+
+        if (!materialExists)
+        {
+            throw new AppNotFoundException(
+                "Learning material was not found.",
+                SyncContract.ErrorCodes.LearningMaterialNotFound);
+        }
+    }
+
+    private async Task ReorderRemainingChunksAsync(
+        Guid materialId,
+        CancellationToken cancellationToken)
+    {
+        var remainingChunks = await dbContext.MaterialChunks
+            .Where(x => x.LearningMaterialId == materialId)
+            .OrderBy(x => x.OrderNo)
+            .ToListAsync(cancellationToken);
+
+        var requestedIds = remainingChunks.Select(x => x.Id).ToList();
+        await ApplyChunkOrderAsync(remainingChunks, requestedIds, cancellationToken);
+    }
+
+    private async Task ApplyChunkOrderAsync(
+        IReadOnlyCollection<MaterialChunk> chunks,
+        IReadOnlyList<Guid> requestedIds,
+        CancellationToken cancellationToken)
+    {
+        var chunkList = chunks.ToList();
+
+        for (var i = 0; i < chunkList.Count; i++)
+        {
+            chunkList[i].ChangeOrderTemporary(-(i + 1));
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        for (var i = 0; i < requestedIds.Count; i++)
+        {
+            var chunk = chunkList.First(x => x.Id == requestedIds[i]);
+            chunk.ChangeOrder(i + 1);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void ValidateChunkPayload(
+        string content,
+        int difficultyLevel,
+        int estimatedStudyMinutes)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new AppConflictException(
+                "Chunk content cannot be empty.",
+                SyncContract.ErrorCodes.ChunkContentRequired);
+        }
+
+        if (difficultyLevel < 1 || difficultyLevel > 5)
+        {
+            throw new AppConflictException(
+                "Difficulty level must be between 1 and 5.",
+                SyncContract.ErrorCodes.InvalidDifficultyLevel);
+        }
+
+        if (estimatedStudyMinutes <= 0)
+        {
+            throw new AppConflictException(
+                "Estimated study minutes must be greater than zero.",
+                SyncContract.ErrorCodes.InvalidEstimatedStudyMinutes);
+        }
+    }
+
     private async Task<SyncPushOperationResultDto> RecordOperationAsync(
         Guid userId,
         SyncPushOperationDto operation,
@@ -533,6 +925,8 @@ public sealed class PushSyncOperationsCommandHandler(
             SyncContract.ErrorCodes.SyncInvalidPayload or
             SyncContract.ErrorCodes.SyncSessionIdRequired or
             SyncContract.ErrorCodes.SyncPlanIdRequired or
+            SyncContract.ErrorCodes.SyncMaterialIdRequired or
+            SyncContract.ErrorCodes.SyncChunkIdRequired or
             SyncContract.ErrorCodes.SyncPayloadFieldRequired or
             SyncContract.ErrorCodes.SyncPayloadFieldInvalid;
     }
@@ -580,6 +974,77 @@ public sealed class PushSyncOperationsCommandHandler(
             SyncContract.ErrorCodes.SyncPlanIdRequired);
     }
 
+    private static Guid ReadMaterialId(SyncPushOperationDto operation, JsonElement root)
+    {
+        if (operation.EntityId != Guid.Empty)
+            return operation.EntityId;
+
+        if (TryReadGuid(root, "materialId", out var materialId))
+            return materialId;
+
+        if (TryReadGuid(root, "learningMaterialId", out var learningMaterialId))
+            return learningMaterialId;
+
+        if (TryReadGuid(root, "id", out var id))
+            return id;
+
+        throw new AppConflictException(
+            "Material sync operation requires a materialId.",
+            SyncContract.ErrorCodes.SyncMaterialIdRequired);
+    }
+
+    private static Guid ReadMaterialIdFromPayload(JsonElement root)
+    {
+        if (TryReadGuid(root, "materialId", out var materialId))
+            return materialId;
+
+        if (TryReadGuid(root, "learningMaterialId", out var learningMaterialId))
+            return learningMaterialId;
+
+        throw new AppConflictException(
+            "Material chunk sync operation requires a materialId.",
+            SyncContract.ErrorCodes.SyncMaterialIdRequired);
+    }
+
+    private static Guid ReadChunkId(SyncPushOperationDto operation, JsonElement root)
+    {
+        if (operation.EntityId != Guid.Empty)
+            return operation.EntityId;
+
+        if (TryReadGuid(root, "chunkId", out var chunkId))
+            return chunkId;
+
+        if (TryReadGuid(root, "id", out var id))
+            return id;
+
+        throw new AppConflictException(
+            "Material chunk sync operation requires a chunkId.",
+            SyncContract.ErrorCodes.SyncChunkIdRequired);
+    }
+
+    private static string ReadRequiredString(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+        {
+            throw new AppConflictException(
+                $"Sync payload requires {propertyName}.",
+                SyncContract.ErrorCodes.SyncPayloadFieldRequired);
+        }
+
+        var rawValue = value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : value.GetRawText();
+
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            throw new AppConflictException(
+                $"Sync payload requires {propertyName}.",
+                SyncContract.ErrorCodes.SyncPayloadFieldRequired);
+        }
+
+        return rawValue.Trim();
+    }
+
     private static int ReadRequiredInt(JsonElement root, string propertyName)
     {
         if (!root.TryGetProperty(propertyName, out var value))
@@ -601,6 +1066,66 @@ public sealed class PushSyncOperationsCommandHandler(
         throw new AppConflictException(
             $"Sync payload field {propertyName} must be an integer.",
             SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
+    }
+
+    private static int? ReadOptionalInt(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value) ||
+            value.ValueKind == JsonValueKind.Null ||
+            value.ValueKind == JsonValueKind.Undefined)
+        {
+            return null;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+            return number;
+
+        if (value.ValueKind == JsonValueKind.String &&
+            int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out number))
+        {
+            return number;
+        }
+
+        throw new AppConflictException(
+            $"Sync payload field {propertyName} must be an integer.",
+            SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
+    }
+
+    private static IReadOnlyList<Guid> ReadRequiredGuidList(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var value))
+        {
+            throw new AppConflictException(
+                $"Sync payload requires {propertyName}.",
+                SyncContract.ErrorCodes.SyncPayloadFieldRequired);
+        }
+
+        if (value.ValueKind != JsonValueKind.Array)
+        {
+            throw new AppConflictException(
+                $"Sync payload field {propertyName} must be a GUID array.",
+                SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
+        }
+
+        var ids = new List<Guid>();
+
+        foreach (var item in value.EnumerateArray())
+        {
+            var rawValue = item.ValueKind == JsonValueKind.String
+                ? item.GetString()
+                : item.GetRawText();
+
+            if (!Guid.TryParse(rawValue, out var id))
+            {
+                throw new AppConflictException(
+                    $"Sync payload field {propertyName} must contain only GUID values.",
+                    SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
+            }
+
+            ids.Add(id);
+        }
+
+        return ids;
     }
 
     private static string? ReadOptionalString(JsonElement root, string propertyName)

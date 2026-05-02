@@ -19,9 +19,10 @@ namespace MentoraX.Domain.Entities
             string? keywords,
             int difficultyLevel,
             int estimatedStudyMinutes,
-            bool isGeneratedByAI = false)
+            bool isGeneratedByAI = false,
+            Guid? id = null)
         {
-            Id = Guid.NewGuid();
+            Id = id ?? Guid.NewGuid();
             LearningMaterialId = learningMaterialId;
             OrderNo = orderNo;
             Content = content;
