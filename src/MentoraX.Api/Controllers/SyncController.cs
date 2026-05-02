@@ -2,6 +2,8 @@ using MentoraX.Api.Contracts.Sync;
 using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.DTOs;
+using MentoraX.Application.Features.MaterialChunks.Queries;
+using MentoraX.Application.Features.Materials.Queries;
 using MentoraX.Application.Features.Mobile.Queries;
 using MentoraX.Application.Features.StudyPlans.Queries;
 using MentoraX.Application.Features.Sync.Commands;
@@ -20,6 +22,8 @@ public sealed class SyncController : ControllerBase
     public async Task<IActionResult> Bootstrap(
         [FromServices] ICurrentUserService currentUserService,
         [FromServices] IQueryHandler<GetStudyPlansQuery, IReadOnlyCollection<StudyPlanDto>> studyPlansHandler,
+        [FromServices] IQueryHandler<GetMaterialsQuery, IReadOnlyCollection<MaterialDto>> materialsHandler,
+        [FromServices] IQueryHandler<GetMaterialChunksQuery, IReadOnlyCollection<MaterialChunkDto>> materialChunksHandler,
         [FromServices] IQueryHandler<GetMobileDashboardQuery, MobileDashboardDto> dashboardHandler,
         [FromServices] IQueryHandler<GetNextStudySessionQuery, NextStudySessionDto?> nextSessionHandler,
         CancellationToken cancellationToken)
@@ -28,6 +32,18 @@ public sealed class SyncController : ControllerBase
         var studyPlans = await studyPlansHandler.Handle(
             new GetStudyPlansQuery(userId),
             cancellationToken);
+        var materials = await materialsHandler.Handle(
+            new GetMaterialsQuery(userId),
+            cancellationToken);
+        var materialChunks = new List<MaterialChunkDto>();
+
+        foreach (var material in materials)
+        {
+            materialChunks.AddRange(await materialChunksHandler.Handle(
+                new GetMaterialChunksQuery(material.Id),
+                cancellationToken));
+        }
+
         var dashboard = await dashboardHandler.Handle(
             new GetMobileDashboardQuery(userId),
             cancellationToken);
@@ -38,6 +54,8 @@ public sealed class SyncController : ControllerBase
         return Ok(new SyncBootstrapDto(
             DateTime.UtcNow,
             studyPlans,
+            materials,
+            materialChunks,
             dashboard,
             nextSession));
     }
