@@ -6,6 +6,7 @@ using MentoraX.Application.Abstractions.Services;
 using MentoraX.Application.Common;
 using MentoraX.Application.Common.Exceptions;
 using MentoraX.Application.DTOs;
+using MentoraX.Application.Features.Sync;
 using MentoraX.Domain.Entities;
 using MentoraX.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -21,10 +22,10 @@ public sealed class PushSyncOperationsCommandHandler(
     ICurrentUserService currentUserService)
     : ICommandHandler<PushSyncOperationsCommand, SyncPushResponseDto>
 {
-    private const string StatusApplied = "applied";
-    private const string StatusAlreadyApplied = "already_applied";
-    private const string StatusConflict = "conflict";
-    private const string StatusFailed = "failed";
+    private const string StatusApplied = SyncContract.ResultStatuses.Applied;
+    private const string StatusAlreadyApplied = SyncContract.ResultStatuses.AlreadyApplied;
+    private const string StatusConflict = SyncContract.ResultStatuses.Conflict;
+    private const string StatusFailed = SyncContract.ResultStatuses.Failed;
 
     public async Task<SyncPushResponseDto> Handle(
         PushSyncOperationsCommand command,
@@ -51,7 +52,7 @@ public sealed class PushSyncOperationsCommandHandler(
             return new SyncPushOperationResultDto(
                 operation.OperationId,
                 StatusFailed,
-                "sync_operation_id_required: OperationId is required.");
+                $"{SyncContract.ErrorCodes.SyncOperationIdRequired}: OperationId is required.");
         }
 
         var existingOperation = await dbContext.SyncOperations
@@ -77,22 +78,22 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             switch (operation.OperationType)
             {
-                case "StudySessionStarted":
+                case SyncContract.OperationTypes.StudySessionStarted:
                     await ApplyStudySessionStartedAsync(userId, operation, cancellationToken);
                     break;
-                case "StudySessionCompleted":
+                case SyncContract.OperationTypes.StudySessionCompleted:
                     await ApplyStudySessionCompletedAsync(userId, operation, cancellationToken);
                     break;
-                case "StudyPlanPaused":
+                case SyncContract.OperationTypes.StudyPlanPaused:
                     await ApplyStudyPlanPausedAsync(userId, operation, cancellationToken);
                     break;
-                case "StudyPlanResumed":
+                case SyncContract.OperationTypes.StudyPlanResumed:
                     await ApplyStudyPlanResumedAsync(userId, operation, cancellationToken);
                     break;
-                case "StudyPlanCancelled":
+                case SyncContract.OperationTypes.StudyPlanCancelled:
                     await ApplyStudyPlanCancelledAsync(userId, operation, cancellationToken);
                     break;
-                case "StudyPlanCompleted":
+                case SyncContract.OperationTypes.StudyPlanCompleted:
                     await ApplyStudyPlanCompletedAsync(userId, operation, cancellationToken);
                     break;
                 default:
@@ -100,7 +101,7 @@ public sealed class PushSyncOperationsCommandHandler(
                         userId,
                         operation,
                         StatusConflict,
-                        $"sync_operation_not_supported: {operation.OperationType} is not supported.",
+                        $"{SyncContract.ErrorCodes.SyncOperationNotSupported}: {operation.OperationType} is not supported.",
                         cancellationToken);
             }
 
@@ -146,7 +147,7 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppNotFoundException(
                 "Study session not found.",
-                "study_session_not_found");
+                SyncContract.ErrorCodes.StudySessionNotFound);
         }
 
         if (session.IsCompleted)
@@ -156,14 +157,14 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppConflictException(
                 "Session does not belong to a valid study plan.",
-                "session_plan_not_found");
+                SyncContract.ErrorCodes.SessionPlanNotFound);
         }
 
         if (session.StudyPlan.Status != PlanStatus.Active)
         {
             throw new AppConflictException(
                 "This plan is no longer active. Please refresh the page.",
-                "study_plan_not_active");
+                SyncContract.ErrorCodes.StudyPlanNotActive);
         }
 
         if (!session.StartedAtUtc.HasValue)
@@ -206,7 +207,7 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppNotFoundException(
                 "Study session not found.",
-                "study_session_not_found");
+                SyncContract.ErrorCodes.StudySessionNotFound);
         }
 
         if (session.IsCompleted)
@@ -216,14 +217,14 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppConflictException(
                 "Session does not belong to a valid study plan.",
-                "session_plan_not_found");
+                SyncContract.ErrorCodes.SessionPlanNotFound);
         }
 
         if (session.StudyPlan.Status != PlanStatus.Active)
         {
             throw new AppConflictException(
                 "This plan is no longer active. Please refresh the page.",
-                "study_plan_not_active");
+                SyncContract.ErrorCodes.StudyPlanNotActive);
         }
 
         if (!session.StartedAtUtc.HasValue)
@@ -334,7 +335,7 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppNotFoundException(
                 "Study plan was not found.",
-                "study_plan_not_found");
+                SyncContract.ErrorCodes.StudyPlanNotFound);
         }
 
         plan.Status = PlanStatus.Paused;
@@ -360,21 +361,21 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppNotFoundException(
                 "Study plan was not found.",
-                "study_plan_not_found");
+                SyncContract.ErrorCodes.StudyPlanNotFound);
         }
 
         if (plan.Status == PlanStatus.Cancelled)
         {
             throw new AppConflictException(
                 "Cancelled plan cannot be resumed.",
-                "cancelled_plan_cannot_be_resumed");
+                SyncContract.ErrorCodes.CancelledPlanCannotBeResumed);
         }
 
         if (plan.Status == PlanStatus.Completed)
         {
             throw new AppConflictException(
                 "Completed plan cannot be resumed.",
-                "completed_plan_cannot_be_resumed");
+                SyncContract.ErrorCodes.CompletedPlanCannotBeResumed);
         }
 
         plan.Status = PlanStatus.Active;
@@ -402,14 +403,14 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppNotFoundException(
                 "Study plan was not found.",
-                "study_plan_not_found");
+                SyncContract.ErrorCodes.StudyPlanNotFound);
         }
 
         if (plan.Status == PlanStatus.Completed)
         {
             throw new AppConflictException(
                 "Completed plan cannot be cancelled.",
-                "completed_plan_cannot_be_cancelled");
+                SyncContract.ErrorCodes.CompletedPlanCannotBeCancelled);
         }
 
         plan.Status = PlanStatus.Cancelled;
@@ -453,14 +454,14 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppNotFoundException(
                 "Study plan was not found.",
-                "study_plan_not_found");
+                SyncContract.ErrorCodes.StudyPlanNotFound);
         }
 
         if (plan.Status == PlanStatus.Cancelled)
         {
             throw new AppConflictException(
                 "Cancelled plan cannot be completed.",
-                "cancelled_plan_cannot_be_completed");
+                SyncContract.ErrorCodes.CancelledPlanCannotBeCompleted);
         }
 
         if (plan.Status == PlanStatus.Completed)
@@ -529,11 +530,11 @@ public sealed class PushSyncOperationsCommandHandler(
     private static bool IsTerminalSyncError(string code)
     {
         return code is
-            "sync_invalid_payload" or
-            "sync_session_id_required" or
-            "sync_plan_id_required" or
-            "sync_payload_field_required" or
-            "sync_payload_field_invalid";
+            SyncContract.ErrorCodes.SyncInvalidPayload or
+            SyncContract.ErrorCodes.SyncSessionIdRequired or
+            SyncContract.ErrorCodes.SyncPlanIdRequired or
+            SyncContract.ErrorCodes.SyncPayloadFieldRequired or
+            SyncContract.ErrorCodes.SyncPayloadFieldInvalid;
     }
 
     private static JsonDocument ParsePayload(string payload)
@@ -546,7 +547,7 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppConflictException(
                 "Sync payload is not valid JSON.",
-                "sync_invalid_payload");
+                SyncContract.ErrorCodes.SyncInvalidPayload);
         }
     }
 
@@ -560,7 +561,7 @@ public sealed class PushSyncOperationsCommandHandler(
 
         throw new AppConflictException(
             "Study session sync operation requires a sessionId.",
-            "sync_session_id_required");
+            SyncContract.ErrorCodes.SyncSessionIdRequired);
     }
 
     private static Guid ReadPlanId(SyncPushOperationDto operation, JsonElement root)
@@ -576,7 +577,7 @@ public sealed class PushSyncOperationsCommandHandler(
 
         throw new AppConflictException(
             "Study plan sync operation requires a planId.",
-            "sync_plan_id_required");
+            SyncContract.ErrorCodes.SyncPlanIdRequired);
     }
 
     private static int ReadRequiredInt(JsonElement root, string propertyName)
@@ -585,7 +586,7 @@ public sealed class PushSyncOperationsCommandHandler(
         {
             throw new AppConflictException(
                 $"Sync payload requires {propertyName}.",
-                "sync_payload_field_required");
+                SyncContract.ErrorCodes.SyncPayloadFieldRequired);
         }
 
         if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
@@ -599,7 +600,7 @@ public sealed class PushSyncOperationsCommandHandler(
 
         throw new AppConflictException(
             $"Sync payload field {propertyName} must be an integer.",
-            "sync_payload_field_invalid");
+            SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
     }
 
     private static string? ReadOptionalString(JsonElement root, string propertyName)
@@ -640,7 +641,7 @@ public sealed class PushSyncOperationsCommandHandler(
 
         throw new AppConflictException(
             $"Sync payload field {propertyName} must be a UTC date-time.",
-            "sync_payload_field_invalid");
+            SyncContract.ErrorCodes.SyncPayloadFieldInvalid);
     }
 
     private static bool TryReadGuid(JsonElement root, string propertyName, out Guid value)
